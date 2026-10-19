@@ -24,6 +24,6 @@ fi
 pkill -f "logcat -v time godot" 2>/dev/null || true
 mkdir -p "$ROOT/builds/logs"
 LOG=$ROOT/builds/logs/$(date +%Y%m%d-%H%M%S).log
-nohup "$ADB" logcat -v time godot:* VrApi:I '*:S' > "$LOG" 2>&1 &
+setsid nohup "$ADB" logcat -v time godot:* VrApi:I '*:S' > "$LOG" 2>&1 < /dev/null &
 ln -sf "$LOG" "$ROOT/builds/logs/latest.log"
 echo "Launched. Logging to $LOG (builds/logs/latest.log)"

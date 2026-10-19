@@ -1,0 +1,3 @@
+[submodule "extension/libretro-godot"]
+	path = extension/libretro-godot
+	url = https://github.com/RetroXR/libretro-godot.git

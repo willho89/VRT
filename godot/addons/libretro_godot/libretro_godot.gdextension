@@ -1,0 +1,11 @@
+[configuration]
+
+entry_symbol = "libretro_godot_library_init"
+compatibility_minimum = "4.5"
+
+[libraries]
+
+linux.debug.x86_64 = "res://addons/libretro_godot/bin/libretro_godot.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/libretro_godot/bin/libretro_godot.linux.template_release.x86_64.so"
+android.debug.arm64 = "res://addons/libretro_godot/bin/liblibretro_godot.android.template_debug.arm64.so"
+android.release.arm64 = "res://addons/libretro_godot/bin/liblibretro_godot.android.template_release.arm64.so"
