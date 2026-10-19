@@ -1,0 +1,71 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="VRT"
+config/description="A single, faithfully emulated CRT in VR/AR, fed by libretro cores."
+run/main_scene="res://scenes/hello_xr.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+
+[autoload]
+
+[display]
+
+window/vsync/vsync_mode=0
+
+[layer_names]
+
+3d_physics/layer_1="Virtual Room"
+3d_physics/layer_2="Real Scene"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=2
+
+[shader_globals]
+
+VRT_SCREEN_CENTER={
+"type": "vec3",
+"value": Vector3(0, 1, -1.5)
+}
+VRT_SCREEN_RIGHT={
+"type": "vec3",
+"value": Vector3(0.25, 0, 0)
+}
+VRT_SCREEN_UP={
+"type": "vec3",
+"value": Vector3(0, 0.19, 0)
+}
+VRT_SCREEN_RADIANCE={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+
+[xr]
+
+openxr/enabled=true
+openxr/reference_space=1
+openxr/foveation_level=1
+openxr/foveation_dynamic=true
+shaders/enabled=true
+openxr/extensions/automatically_request_runtime_permissions=true
+openxr/extensions/meta/passthrough=true
+openxr/extensions/meta/scene_api=true
+openxr/extensions/meta/anchor_api=true
+openxr/extensions/meta/composition_layer_settings=true
+openxr/extensions/meta/composition_layer_settings/main_projection_layer/alpha_blend/enable=true
+openxr/extensions/meta/composition_layer_settings/main_projection_layer/alpha_blend/source_color_blend_factor=1
+openxr/extensions/meta/composition_layer_settings/main_projection_layer/alpha_blend/destination_color_blend_factor=3
+openxr/extensions/meta/composition_layer_settings/main_projection_layer/alpha_blend/source_alpha_blend_factor=1
+openxr/extensions/meta/composition_layer_settings/main_projection_layer/alpha_blend/destination_alpha_blend_factor=3

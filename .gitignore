@@ -1,0 +1,12 @@
+# Godot
+godot/.godot/
+godot/android/
+*.import.tmp
+# builds
+builds/
+extension/build/
+*.apk
+*.aab
+*.os
+*.o
+godot/addons/godotopenxrvendors/
