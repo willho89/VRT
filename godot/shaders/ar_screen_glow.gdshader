@@ -17,6 +17,6 @@ uniform float strength = 1.0;
 void fragment() {
 	vec3 world_pos = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 world_normal = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	ALBEDO = albedo * strength * vrt_screen_irradiance(world_pos, world_normal);
+	ALBEDO = albedo * strength * vrt_screen_irradiance_coarse(world_pos, world_normal);
 	ALPHA = 0.0;
 }

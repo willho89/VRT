@@ -14,7 +14,10 @@ var pipeline := CrtPipeline.new(profile)
 var screen := MeshInstance3D.new()
 var screen_body := StaticBody3D.new()
 var _cabinet := Node3D.new()
-var _radiance := Color.BLACK
+var _cells := Image.create_empty(SAMPLES.x, SAMPLES.y, false, Image.FORMAT_RGBF)
+var _cells_tex := ImageTexture.create_from_image(_cells)
+var _coarse := Image.create_empty(4, 3, false, Image.FORMAT_RGBF)
+var _coarse_tex := ImageTexture.create_from_image(_coarse)
 var _half := Vector2.ONE
 
 
@@ -78,7 +81,7 @@ func _add_box(size: Vector3, pos: Vector3, mat: Material) -> void:
 ## Called each frame with the core's current output (null when idle).
 func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int) -> void:
 	pipeline.push(tex, field, new_frames)
-	_radiance = _average(image) if tex else Color.BLACK
+	_sample_cells(image if tex else null)
 
 
 ## UV of a world-space point on the screen face, top-left origin.
@@ -92,19 +95,33 @@ func _process(_delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("VRT_SCREEN_CENTER", screen.global_position)
 	RenderingServer.global_shader_parameter_set("VRT_SCREEN_RIGHT", b.x.normalized() * _half.x)
 	RenderingServer.global_shader_parameter_set("VRT_SCREEN_UP", b.y.normalized() * _half.y)
-	RenderingServer.global_shader_parameter_set("VRT_SCREEN_RADIANCE",
-			Vector3(_radiance.r, _radiance.g, _radiance.b) * SCREEN_RADIANCE)
+	RenderingServer.global_shader_parameter_set("VRT_SCREEN_RADIANCE", Vector3.ONE * SCREEN_RADIANCE)
+	RenderingServer.global_shader_parameter_set("VRT_SCREEN_CELLS", _cells_tex)
+	RenderingServer.global_shader_parameter_set("VRT_SCREEN_CELLS_COARSE", _coarse_tex)
 
 
-## Mean linear color over a coarse grid of the frame.
-static func _average(image: Image) -> Color:
+## Linear color of each light cell: a 2x2 sample per cell of the CPU frame.
+func _sample_cells(image: Image) -> void:
 	if image == null or image.is_empty():
-		return Color.BLACK
-	var w := image.get_width()
-	var h := image.get_height()
-	var sum := Color(0, 0, 0, 0)
-	for y in SAMPLES.y:
-		for x in SAMPLES.x:
-			var c := image.get_pixel(int((x + 0.5) * w / SAMPLES.x), int((y + 0.5) * h / SAMPLES.y))
-			sum += c.srgb_to_linear()
-	return sum / float(SAMPLES.x * SAMPLES.y)
+		_cells.fill(Color.BLACK)
+	else:
+		var w := image.get_width()
+		var h := image.get_height()
+		for y in SAMPLES.y:
+			for x in SAMPLES.x:
+				var c := Color(0, 0, 0)
+				for sy in 2:
+					for sx in 2:
+						c += image.get_pixel(int((x + 0.25 + 0.5 * sx) * w / SAMPLES.x),
+								int((y + 0.25 + 0.5 * sy) * h / SAMPLES.y)).srgb_to_linear()
+				_cells.set_pixel(x, y, c * 0.25)
+	# 4x3 summary for per-pixel use: each coarse cell averages 4x4 fine cells.
+	for y in 3:
+		for x in 4:
+			var s := Color(0, 0, 0)
+			for fy in 4:
+				for fx in 4:
+					s += _cells.get_pixel(x * 4 + fx, y * 4 + fy)
+			_coarse.set_pixel(x, y, s / 16.0)
+	_cells_tex.update(_cells)
+	_coarse_tex.update(_coarse)

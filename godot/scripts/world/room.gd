@@ -16,6 +16,10 @@ func _ready() -> void:
 	var box := BoxMesh.new()
 	box.size = SIZE
 	box.flip_faces = true
+	# Vertex density for the per-vertex screen light (~8 cm grid).
+	box.subdivide_width = 48
+	box.subdivide_height = 32
+	box.subdivide_depth = 60
 	var walls := MeshInstance3D.new()
 	walls.mesh = box
 	walls.material_override = mat
@@ -29,10 +33,15 @@ func _ready() -> void:
 	add_child(floor_body)
 
 	var stand := MeshInstance3D.new()
+	var stand_mat := ShaderMaterial.new()
+	stand_mat.shader = ROOM_SHADER
 	var stand_mesh := BoxMesh.new()
 	stand_mesh.size = Vector3(0.9, STAND_TOP, 0.5)
+	stand_mesh.subdivide_width = 18
+	stand_mesh.subdivide_height = 10
+	stand_mesh.subdivide_depth = 10
 	stand.mesh = stand_mesh
-	stand.material_override = mat
+	stand.material_override = stand_mat
 	stand.position = Vector3(0, STAND_TOP / 2.0, -1.6)
 	add_child(stand)
 

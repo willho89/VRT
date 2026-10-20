@@ -8,6 +8,9 @@ signal passthrough_changed(enabled: bool)
 const GLOW_ANCHOR_SCENE := preload("res://scenes/glow_anchor.tscn")
 const RAY_LENGTH := 10.0
 const RENDER_SCALE := 1.25
+## Quest 2 (XR2 Gen 1) gets native resolution and a 90 Hz cap for headroom.
+const QUEST2_RENDER_SCALE := 1.0
+const QUEST2_MAX_HZ := 90.0
 
 var xr: OpenXRInterface
 var camera := XRCamera3D.new()
@@ -15,6 +18,7 @@ var left := XRController3D.new()
 var right := XRController3D.new()
 var ray := RayCast3D.new()
 var passthrough := false
+var is_quest2 := false
 var scene_manager: Node
 
 var _beam := MeshInstance3D.new()
@@ -38,7 +42,10 @@ func _ready() -> void:
 
 	# Render closer to panel resolution so scanlines and mask resolve from
 	# further away (Quest 3 default target ~1680x1760 vs 2064x2208 panel).
-	xr.render_target_size_multiplier = RENDER_SCALE
+	var system: String = xr.get_system_info().get("XRSystemName", "")
+	is_quest2 = "Quest 2" in system or "Quest2" in system
+	print("VRT: XR system '%s'%s" % [system, " (Quest 2 profile)" if is_quest2 else ""])
+	xr.render_target_size_multiplier = QUEST2_RENDER_SCALE if is_quest2 else RENDER_SCALE
 	add_child(camera)
 	for c in [left, right]:
 		c.pose = &"aim"
@@ -108,6 +115,8 @@ func set_passthrough(enable: bool, env: Environment) -> void:
 func _on_session_begun() -> void:
 	var rates: Array = xr.get_available_display_refresh_rates()
 	print("VRT: refresh rates ", rates)
+	if is_quest2:
+		rates = rates.filter(func(r): return r <= QUEST2_MAX_HZ)
 	if not rates.is_empty():
 		var best: float = rates.max()
 		xr.set_display_refresh_rate(best)

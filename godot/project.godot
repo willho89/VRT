@@ -47,6 +47,14 @@ VRT_SCREEN_UP={
 "type": "vec3",
 "value": Vector3(0, 0.19, 0)
 }
+VRT_SCREEN_CELLS={
+"type": "sampler2D",
+"value": ""
+}
+VRT_SCREEN_CELLS_COARSE={
+"type": "sampler2D",
+"value": ""
+}
 VRT_SCREEN_RADIANCE={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
