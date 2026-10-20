@@ -8,8 +8,12 @@ extends Node
 ##   - Keyboard (desktop).
 ##   - Quest Touch controllers, when XR is up and the menu is closed.
 ## Menu: Touch left menu button, Select+Start held on a pad, or Esc.
+## TV menu (the set's OSD): Select+L or Select+R held on a pad, or M. While it
+## is open, buttons go to it (osd_button) instead of the game.
 
 signal menu_toggled
+signal tv_menu_toggled
+signal osd_button(b: int)  # TvOsd.Key
 
 # RETRO_DEVICE_ID_JOYPAD_*
 enum { R_B, R_Y, R_SELECT, R_START, R_UP, R_DOWN, R_LEFT, R_RIGHT, R_A, R_X, R_L, R_R, R_L2, R_R2, R_L3, R_R3 }
@@ -34,10 +38,23 @@ var host: RetroHost
 var left: XRController3D
 var right: XRController3D
 var menu_open := false
+var osd_open := false
 ## Left stick also drives the d-pad (8/16-bit games are all d-pad).
 var stick_as_dpad := true
 
 var _combo_t := 0.0
+var _tv_combo_t := 0.0
+var _prev_mask := 0
+var _repeat_t := 0.0
+const REPEAT_DELAY := 0.4
+const REPEAT_EVERY := 0.12
+## RetroPad bit -> TvOsd.Key. Bottom face (B) enters, right face (A) backs out.
+const OSD_MAP := {
+	R_UP: TvOsd.Key.UP, R_DOWN: TvOsd.Key.DOWN, R_LEFT: TvOsd.Key.LEFT,
+	R_RIGHT: TvOsd.Key.RIGHT, R_B: TvOsd.Key.ENTER, R_START: TvOsd.Key.ENTER,
+	R_A: TvOsd.Key.BACK, R_Y: TvOsd.Key.BACK, R_SELECT: TvOsd.Key.CLOSE,
+}
+const OSD_REPEATS := [R_UP, R_DOWN, R_LEFT, R_RIGHT]
 ## Test automation: [[time_s, retro_id], ...] pressed for PRESS_TIME each,
 ## timed from content start (see set_script_input).
 var _script: Array = []
@@ -61,6 +78,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_ESCAPE: menu_toggled.emit()
+			KEY_M: tv_menu_toggled.emit()
 			KEY_F2: host.quick_save()
 			KEY_F4: host.quick_load()
 
@@ -72,7 +90,7 @@ func bind_controllers(l: XRController3D, r: XRController3D) -> void:
 
 
 func _process(delta: float) -> void:
-	if host == null or not host.is_running():
+	if host == null:
 		return
 	var mask := 0
 	var lx := 0.0
@@ -118,7 +136,14 @@ func _process(delta: float) -> void:
 		if lx < -STICK_DEADZONE: mask |= 1 << R_LEFT
 		if lx > STICK_DEADZONE: mask |= 1 << R_RIGHT
 
-	# Select+Start held opens the VRT menu instead of reaching the game.
+	if not _script.is_empty():
+		_script_t += delta
+		for ev in _script:
+			if _script_t >= ev[0] and _script_t < ev[0] + PRESS_TIME:
+				mask |= 1 << ev[1]
+
+	# Select+Start held opens the VRT menu instead of reaching the game;
+	# Select+L/R opens the TV's menu.
 	var combo := (1 << R_SELECT) | (1 << R_START)
 	if mask & combo == combo:
 		_combo_t += delta
@@ -126,16 +151,49 @@ func _process(delta: float) -> void:
 			menu_toggled.emit()
 	else:
 		_combo_t = 0.0
+	var sel := 1 << R_SELECT
+	if mask & sel and mask & ((1 << R_L) | (1 << R_R)):
+		_tv_combo_t += delta
+		if _tv_combo_t >= MENU_COMBO_HOLD and _tv_combo_t - delta < MENU_COMBO_HOLD:
+			tv_menu_toggled.emit()
+	else:
+		_tv_combo_t = 0.0
 
-	if not _script.is_empty():
-		_script_t += delta
-		for ev in _script:
-			if _script_t >= ev[0] and _script_t < ev[0] + PRESS_TIME:
-				mask |= 1 << ev[1]
+	if osd_open:
+		_feed_osd(mask, delta)
+		_prev_mask = mask
+		mask = 0
+		lx = 0.0
+		ly = 0.0
+		rx = 0.0
+		ry = 0.0
+	else:
+		_prev_mask = mask
+	if not host.is_running():
+		return
 
 	if menu_open:
 		mask = 0
 	host.set_joypad(0, mask, _axis(lx), _axis(ly), _axis(rx), _axis(ry))
+
+
+## Press edges, plus auto-repeat on held directions.
+func _feed_osd(mask: int, delta: float) -> void:
+	var held_dir := false
+	for bit in OSD_MAP:
+		var on: bool = mask & (1 << bit) != 0
+		var was: bool = _prev_mask & (1 << bit) != 0
+		if on and not was:
+			osd_button.emit(OSD_MAP[bit])
+			_repeat_t = 0.0
+		elif on and bit in OSD_REPEATS:
+			held_dir = true
+			_repeat_t += delta
+			if _repeat_t >= REPEAT_DELAY:
+				_repeat_t -= REPEAT_EVERY
+				osd_button.emit(OSD_MAP[bit])
+	if not held_dir:
+		_repeat_t = 0.0
 
 
 static func _axis(v: float) -> int:

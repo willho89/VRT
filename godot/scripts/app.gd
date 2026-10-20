@@ -20,11 +20,15 @@ var _flat_cam: FlatCamera
 var menu_panel: MenuPanel3D
 var menu_layer: CanvasLayer
 var menu_visible := false
+var tv_menu: TvMenu
 
 var _trigger_was := false
 var _stats_t := 0.0
 var _frames_seen := 0
 var _frames_skipped := 0
+## --log-fields: print the field sequence the core delivers (interlace debugging).
+var _log_fields := "--log-fields" in OS.get_cmdline_user_args()
+var _field_log := ""
 
 
 func _ready() -> void:
@@ -56,6 +60,7 @@ func _ready() -> void:
 	menu.launch.connect(_on_launch)
 	menu.action.connect(_on_action)
 	host.content_started.connect(func(e): menu.set_status("Playing: %s  (%s)" % [e.title, e.system]))
+	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
 	host.content_failed.connect(func(msg): menu.set_status("Could not start: " + msg); set_menu_visible(true))
 
 	var xr := XrSession.try_start()
@@ -69,7 +74,6 @@ func _ready() -> void:
 		xr.pose_recentered.connect(_place_viewer)
 		xr.session_begun.connect(func(): get_tree().create_timer(1.0).timeout.connect(_place_viewer))
 		menu.set_action_visible("passthrough", xr_session.supports_passthrough())
-		xr_session.set_eye_width(settings.get_value("xr", "eye_width", xr_session.default_eye_width()))
 	else:
 		print("VRT: no OpenXR, flat desktop mode")
 		_flat_cam = FlatCamera.new()
@@ -82,10 +86,11 @@ func _ready() -> void:
 		menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 40)
 		menu.set_action_visible("passthrough", false)
 		menu.set_action_visible("recenter", false)
-		menu.set_action_visible("resolution", false)
 
-	tv.pipeline.set_strength_level(settings.get_value("crt", "signal_strength", SignalPresets.DEFAULT_STRENGTH))
-	tv.pipeline.set_detail_level(settings.get_value("crt", "detail", CrtPipeline.DEFAULT_DETAIL))
+	tv_menu = TvMenu.new(settings, tv, xr_session)
+	router.tv_menu_toggled.connect(_toggle_tv_menu)
+	router.osd_button.connect(tv.osd.press)
+	host.content_started.connect(func(_e): tv_menu.show_input_banner())
 	_request_storage_access()
 	rescan()
 	set_menu_visible(true)
@@ -99,9 +104,15 @@ func _ready() -> void:
 			var when := spec[1].to_float() if spec.size() > 1 else 8.0
 			get_tree().create_timer(when).timeout.connect(func():
 				get_viewport().get_texture().get_image().save_png(path)
+				# Also the signal stage's raw output, for decoder tuning.
+				var sig := tv.pipeline.signal_texture().get_image()
+				if sig:
+					sig.save_png(path.get_basename() + "-signal.png")
 				print("VRT: screenshot ", path))
 		if a == "--menu=0":
 			set_menu_visible.call_deferred(false)
+		if a == "--tvmenu":
+			tv_menu.open.call_deferred()
 		if a.begins_with("--input="):
 			router.set_script_input(a.trim_prefix("--input="))
 		if a.begins_with("--cam=") and _flat_cam:
@@ -153,8 +164,16 @@ func _place_menu_in_view() -> void:
 func _process(delta: float) -> void:
 	var tex := host.video_texture() if host.is_running() else null
 	var n := host.take_new_frames() if tex else 0
-	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n)
+	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n, delta)
+	router.osd_open = tv.osd.is_open
+	# The core's sound (an AudioStreamPlayer3D under the Libretro node) plays
+	# from the set, so it follows the TV when it is moved.
+	host.libretro.global_transform = tv.speaker_transform()
 	_frames_seen += n
+	if _log_fields and n > 0 and _field_log.length() < 600:
+		_field_log += str(host.video_field()) + ("" if n == 1 else "(+%d)" % (n - 1))
+		if _field_log.length() >= 600:
+			print("VRT fields: ", _field_log)
 	_frames_skipped += maxi(n - 1, 0)
 	if xr_session:
 		var on_menu := _handle_ray()
@@ -233,26 +252,18 @@ func _on_action(name: String) -> void:
 		"recenter":
 			_place_viewer()
 			_place_menu_in_view()
-		"detail":
-			var dl: int = (tv.pipeline.detail_level + 1) % CrtPipeline.DETAIL_NAMES.size()
-			tv.pipeline.set_detail_level(dl)
-			settings.set_value("crt", "detail", dl)
-			menu.set_status("CRT detail: " + CrtPipeline.DETAIL_NAMES[dl])
-		"resolution":
-			var widths := xr_session.eye_widths()
-			var ew: int = (settings.get_value("xr", "eye_width", xr_session.default_eye_width()) + 1) % widths.size()
-			xr_session.set_eye_width(ew)
-			settings.set_value("xr", "eye_width", ew)
-			menu.set_status("Resolution: %d px per eye" % widths[ew])
-		"signal":
-			var lv: int = (tv.pipeline.strength_level + 1) % SignalPresets.STRENGTHS.size()
-			tv.pipeline.set_strength_level(lv)
-			settings.set_value("crt", "signal_strength", lv)
-			menu.set_status("Signal degradation: " + SignalPresets.STRENGTH_NAMES[lv])
-		"input":
-			var i: int = (tv.pipeline.input + 1) % SignalPresets.NAMES.size()
-			tv.pipeline.set_input(i)
-			menu.set_status("TV input: " + SignalPresets.NAMES[i])
+		"tv_menu":
+			_toggle_tv_menu()
+
+
+## The set's own menu, on the screen. Closes the floating panel so the TV is
+## in view and the buttons go to it.
+func _toggle_tv_menu() -> void:
+	if tv.osd.is_open:
+		tv.osd.close()
+	else:
+		set_menu_visible(false)
+		tv_menu.open()
 
 
 ## Quest: ask for All Files Access so /sdcard/VRT is readable. Android shows its

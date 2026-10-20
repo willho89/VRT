@@ -5,6 +5,9 @@ extends Node3D
 ## (screen_light.gdshaderinc) published every frame.
 
 const SCREEN_RADIANCE := 2.0
+const NO_SIGNAL_SHADER := preload("res://shaders/crt/no_signal.gdshader")
+const NO_SIGNAL_SIZE := Vector2i(640, 240)
+enum NoSignal { BLUE, SNOW }
 const SAMPLES := Vector2i(16, 12)
 
 var profile := CrtProfile.vcr_combo_25()
@@ -18,10 +21,39 @@ var _cells_tex := ImageTexture.create_from_image(_cells)
 var _coarse := Image.create_empty(4, 3, false, Image.FORMAT_RGBF)
 var _coarse_tex := ImageTexture.create_from_image(_coarse)
 var _half := Vector2.ONE
+var osd := TvOsd.new()
+var no_signal := NoSignal.BLUE
+var _ns_vp := SubViewport.new()
+var _ns_mat := ShaderMaterial.new()
+var _ns_t := 0.0
+var _ns_frames := 0
+## Hiss from the speakers while showing snow (an untuned channel).
+var _hiss := AudioStreamPlayer3D.new()
+var _hiss_play: AudioStreamGeneratorPlayback
+var _hiss_lp := 0.0
+const HISS_DB := -26.0
 
 
 func _ready() -> void:
 	add_child(pipeline)
+	add_child(osd)
+	pipeline.set_osd(osd)
+	_ns_vp.size = NO_SIGNAL_SIZE
+	_ns_vp.disable_3d = true
+	_ns_vp.transparent_bg = false
+	_ns_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var rect := ColorRect.new()
+	rect.size = Vector2(NO_SIGNAL_SIZE)
+	_ns_mat.shader = NO_SIGNAL_SHADER
+	rect.material = _ns_mat
+	_ns_vp.add_child(rect)
+	add_child(_ns_vp)
+	var gen := AudioStreamGenerator.new()
+	gen.mix_rate = 22050.0
+	gen.buffer_length = 0.15
+	_hiss.stream = gen
+	_hiss.volume_db = HISS_DB
+	add_child(_hiss)
 	screen.material_override = pipeline.surface
 	add_child(screen)
 	add_child(_cabinet)
@@ -53,12 +85,56 @@ func apply_profile(p: CrtProfile) -> void:
 	screen_body.add_child(shape)
 
 
-## Called each frame with the core's current output (null when idle).
-func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int) -> void:
-	pipeline.push(tex, field, new_frames)
+func set_no_signal(mode: int) -> void:
+	no_signal = mode
+	_ns_mat.set_shader_parameter("mode", mode)
+
+
+## Called each frame with the core's current output (null when idle: the
+## set then shows its own no-signal screen at 60 Hz).
+func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int, delta: float) -> void:
 	if cabinet:
-		cabinet.set_power_led(tex != null)
-	_sample_cells(image if tex else null)
+		cabinet.set_power_led(true)
+	if tex:
+		_ns_t = 0.0
+		if _hiss.playing:
+			_hiss.stop()
+		pipeline.push(tex, field, new_frames)
+		_sample_cells(image)
+		return
+	_ns_t += delta
+	var n := int(_ns_t * 60.0)
+	_ns_t -= n / 60.0
+	if n > 0:
+		_ns_frames += n
+		_ns_mat.set_shader_parameter("frame_count", float(_ns_frames))
+		_ns_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	pipeline.push(_ns_vp.get_texture(), 0, n, true)
+	_feed_hiss()
+	_fill_cells(Color(0.0, 0.006, 0.47) if no_signal == NoSignal.BLUE else Color(0.12, 0.12, 0.12))
+
+
+func _feed_hiss() -> void:
+	if no_signal != NoSignal.SNOW:
+		if _hiss.playing:
+			_hiss.stop()
+		return
+	if not _hiss.playing:
+		_hiss.play()
+		_hiss_play = _hiss.get_stream_playback()
+	_hiss.global_transform = speaker_transform()
+	# White noise through a gentle one-pole low-pass: TV-speaker static.
+	for i in _hiss_play.get_frames_available():
+		_hiss_lp = lerpf(_hiss_lp, randf() * 2.0 - 1.0, 0.6)
+		_hiss_play.push_frame(Vector2(_hiss_lp, _hiss_lp))
+
+
+## Where the set's sound comes from: between its speaker grilles.
+func speaker_transform() -> Transform3D:
+	var t := screen.global_transform
+	if cabinet and cabinet.speakers.size() == 2:
+		t.origin = (cabinet.speakers[0].global_position + cabinet.speakers[1].global_position) * 0.5
+	return t
 
 
 ## UV of a world-space point on the screen face, top-left origin.
@@ -100,5 +176,13 @@ func _sample_cells(image: Image) -> void:
 				for fx in 4:
 					s += _cells.get_pixel(x * 4 + fx, y * 4 + fy)
 			_coarse.set_pixel(x, y, s / 16.0)
+	_cells_tex.update(_cells)
+	_coarse_tex.update(_coarse)
+
+
+## Uniform screen light (the set's own no-signal screen).
+func _fill_cells(c: Color) -> void:
+	_cells.fill(c)
+	_coarse.fill(c)
 	_cells_tex.update(_cells)
 	_coarse_tex.update(_coarse)

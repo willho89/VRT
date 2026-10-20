@@ -76,3 +76,21 @@ The user approved these changes in the headset after reporting that the CRT look
 - **Eye buffer:** absolute widths, 2400 by default on Quest 3. DVD playback holds 120 Hz up to 2800.
 - Known: on the slot mask, vertical phosphor columns read stronger than scanlines from a distance. That's realistic for
   slot masks; revisit per profile.
+
+## M3: signal stage, TV controls, on-TV menu (2026-10-20)
+- **Signal** (`signal_ntsc.gdshader`): NTSC encode → cable → TV decode at 4 × fsc (14.318 MHz), so every time
+  constant is the same physical time on every system. Each sample integrates the held console pixels under it. The
+  decoder demodulates with a Gaussian I/Q low-pass, and luma = signal minus the re-modulated chroma estimate, a notch
+  exactly as wide as the chroma band. Flat colours come out clean; dot crawl and rainbowing appear only at edges.
+  Comb mode is a 2-line comb. S-Video keeps Y and C apart. RF adds TSUISHI's effects (ghost, snow, AGC, sync, burst).
+- **Per-system timing** (`system_timing.gd`): cycles per pixel, line step and frame steps from the master clocks.
+  NES/SNES have a 1/3-cycle line step (diagonal crawl), Genesis 0 (static, so its dither blends), PC Engine and DVD
+  1/2 (checkerboard). DVD fields step by 3/4 of a cycle.
+- **Distance band-limit** (`raster_lowpass.gdshader`): the raster is up to ~760 samples wide, and its 4-sample
+  carrier residue aliased into pixelation at viewing distance. The tube fades to a 4-sample-box copy (which nulls
+  fsc) as the footprint grows, using the detail level's fade_px.
+- **TV controls** in the raster pass on the gamma-encoded signal: brightness, contrast, colour, tint and sharpness
+  (peaking). 0..100 with 50 neutral.
+- **OSD** (`tv_osd.gd`, `osd_font.gd`, `tv_menu.gd`): VRT's own 5×7 font at 2×, mixed into the signal after the
+  controls, so it goes through the beam, mask and glass. Styles: green (default) or white on a black box. No-signal
+  screen: blue (default) or snow with hiss.

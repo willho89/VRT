@@ -8,7 +8,7 @@ signal action(name: String)
 
 const ACTIONS := [
 	["resume", "Resume"], ["stop", "Stop"], ["save_state", "Save state"],
-	["load_state", "Load state"], ["input", "Input"], ["signal", "Signal"], ["detail", "Detail"], ["resolution", "Resolution"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
+	["load_state", "Load state"], ["tv_menu", "TV menu"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
 ]
 
 ## 30 for the XR panel (1280x800 px at ~0.9 m); smaller on a desktop window.

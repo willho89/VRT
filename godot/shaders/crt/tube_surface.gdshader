@@ -13,6 +13,8 @@ shader_type spatial;
 render_mode cull_back, shadows_disabled;
 
 uniform sampler2D raster_tex : filter_linear, repeat_disable;
+// raster_tex low-passed horizontally (raster_lowpass.gdshader), for distance.
+uniform sampler2D raster_lo_tex : filter_linear, repeat_disable;
 uniform sampler2D halation_tex : filter_linear, repeat_disable;
 uniform float halation = 0.06;
 uniform vec2 raster_size = vec2(320.0, 240.0);   // (source px, frame lines)
@@ -132,10 +134,20 @@ vec3 phosphor_mask(vec2 m, vec2 fw) {
 	return mix(h0, h1, odd_rows) * v / (mean_h * slot_duty);
 }
 
+// One raster line at x, band-limited horizontally by the footprint: lo is
+// the weight of the low-passed copy (0 up close, 1 far away).
+vec3 raster_line(vec2 uv, float lo) {
+	if (lo <= 0.0) {
+		return texture(raster_tex, uv).rgb;
+	}
+	vec3 far = texture(raster_lo_tex, uv).rgb;
+	return lo >= 1.0 ? far : mix(texture(raster_tex, uv).rgb, far, lo);
+}
+
 // Light deposited by one gun at picture position pic (0..1), from the raster.
 // Gaussian spot per scanline, widened by the pixel footprint (exact for
 // Gaussians: variance adds the box filter's w^2/12).
-float beam(vec2 pic, int c, float footprint_lines) {
+float beam(vec2 pic, int c, float footprint_lines, float lo) {
 	float y = pic.y * raster_size.y - 0.5;
 	float l0 = floor(y);
 	float sum = 0.0;
@@ -144,7 +156,7 @@ float beam(vec2 pic, int c, float footprint_lines) {
 		if (l < 0.0 || l >= raster_size.y) {
 			continue;
 		}
-		vec3 rgb = texture(raster_tex, vec2(pic.x, (l + 0.5) / raster_size.y)).rgb;
+		vec3 rgb = raster_line(vec2(pic.x, (l + 0.5) / raster_size.y), lo);
 		float drive = c == 0 ? rgb.r : (c == 1 ? rgb.g : rgb.b);
 		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0))) * beam_scale;
 		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
@@ -195,11 +207,15 @@ void fragment() {
 		vec2 pic = c * 0.5 + 0.5;
 		vec2 corner = uv * 2.0 - 1.0;  // convergence error grows toward the corners
 		float footprint_lines = fwidth(pic.y) * raster_size.y;
+		// The finest horizontal structure is the 4-sample subcarrier residue:
+		// fade it out over the same pixel periods as the mask (fade_px).
+		float footprint_x = fwidth(pic.x) * raster_size.x;
+		float lo = 1.0 - smoothstep(fade_px.x, fade_px.y, 4.0 / max(footprint_x, 1e-5));
 
 		vec3 drive = vec3(
-			beam(pic + convergence_r_mm * corner / visible_mm, 0, footprint_lines),
-			beam(pic, 1, footprint_lines),
-			beam(pic + convergence_b_mm * corner / visible_mm, 2, footprint_lines));
+			beam(pic + convergence_r_mm * corner / visible_mm, 0, footprint_lines, lo),
+			beam(pic, 1, footprint_lines, lo),
+			beam(pic + convergence_b_mm * corner / visible_mm, 2, footprint_lines, lo));
 		float in_pic = step(0.0, pic.x) * step(pic.x, 1.0) * step(0.0, pic.y) * step(pic.y, 1.0);
 
 		float falloff = mix(1.0, corner_falloff, smoothstep(0.2, 1.6, dot(corner, corner)));

@@ -20,6 +20,8 @@ const CORNER_SEGS := 6
 var plastic := _plastic_material(Color(0.045, 0.045, 0.048), 0.55)
 var plastic_dark := _plastic_material(Color(0.02, 0.02, 0.022), 0.4)
 var grille_mat := _grille_material()
+## The two speaker grilles (sound comes from between them).
+var speakers: Array[Node3D] = []
 var led_mat := StandardMaterial3D.new()
 
 ## Where the tube's glass centre goes (cabinet space, metres).
@@ -93,6 +95,7 @@ func _build_front_details() -> void:
 		g.material_override = grille_mat
 		g.position = Vector3(sx * (W * 0.5 - 70.0), panel_y + 8.0, 0.4) * MM
 		add_child(g)
+		speakers.append(g)
 	# Power button (left) and transport disc (right).
 	_cylinder(12.0, 6.0, Vector3(-185.0, panel_y + 6.0, 2.0), plastic_dark)
 	_cylinder(19.0, 5.0, Vector3(160.0, panel_y + 4.0, 1.5), plastic)

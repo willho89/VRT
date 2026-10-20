@@ -17,7 +17,7 @@ fi
 # Startup occasionally stalls before the renderer comes up; retry once.
 for try in 1 2; do
   timeout -s INT $(( ${WHEN%.*} + 12 )) "$GODOT" --path "$ROOT/godot" -- "--launch=$TITLE" --menu=0 \
-    "--input=$INPUT" "--cam=$CAM" "--shot=$OUT@$WHEN" > "$LOG" 2>&1
+    "--input=$INPUT" ${EXTRA:-} "--cam=$CAM" "--shot=$OUT@$WHEN" > "$LOG" 2>&1
   [ -f "$OUT" ] && break
 done
 grep -E "SCRIPT ERROR|SHADER ERROR" "$LOG" | head -5

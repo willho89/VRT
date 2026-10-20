@@ -2,22 +2,26 @@ class_name CrtPipeline
 extends Node
 ## Runs the per-frame CRT passes and feeds the tube surface material.
 ##
-##   core frame -> signal (composite/RF/S-Video, source res) -> raster
+##   core frame -> signal (composite/RF/S-Video at 4 x fsc samples) -> raster
 ##   (ping-pong SubViewports, RGBA16F) -> tube_surface
 ##
 ## The raster pass renders only when the core delivered a new frame, sized
-## (source width, frame lines); in field mode frame lines are 2x the field.
+## (signal samples or source width for RGB, frame lines); in field mode frame
+## lines are 2x the field.
 
 const RASTER_SHADER := preload("res://shaders/crt/raster.gdshader")
 const SIGNAL_SHADER := preload("res://shaders/crt/signal_ntsc.gdshader")
 const HALATION_SHADER := preload("res://shaders/crt/halation.gdshader")
 const HALATION_DOWNSCALE := 4
+const LOWPASS_SHADER := preload("res://shaders/crt/raster_lowpass.gdshader")
 const SURFACE_SHADER := preload("res://shaders/crt/tube_surface.gdshader")
 
 var profile: CrtProfile
 var surface := ShaderMaterial.new()
 var input: int = SignalPresets.Connection.COMPOSITE
 var strength_level: int = SignalPresets.DEFAULT_STRENGTH
+var decoder: int = SignalPresets.Decoder.NOTCH
+var system_core := ""
 ## How close to the headset's resolution limit scanlines and mask are kept
 ## visible: the period (in eye-buffer pixels) over which they fade out.
 ## Lower shows more structure from further away at the risk of moire.
@@ -34,11 +38,18 @@ var detail_level: int = DEFAULT_DETAIL
 var _sig_vp := SubViewport.new()
 var _sig_mat := ShaderMaterial.new()
 var _sig_rect := ColorRect.new()
-var _sig_width := 0
+var _sig_dirty := true
+var _timing := {}
+var _timing_key := ""
+var _phase_index := 0
+var _lo_vp := SubViewport.new()
+var _lo_mat := ShaderMaterial.new()
+var _lo_rect := ColorRect.new()
 var _halo_vp := SubViewport.new()
 var _halo_mat := ShaderMaterial.new()
 var _halo_rect := ColorRect.new()
 var _frame_count := 0
+var _osd: TvOsd
 
 var _vp: Array[SubViewport] = []
 var _mat: Array[ShaderMaterial] = []
@@ -73,6 +84,15 @@ func _init(p: CrtProfile) -> void:
 		_vp.append(vp)
 		_mat.append(mat)
 		_rect.append(rect)
+	_lo_vp.use_hdr_2d = true
+	_lo_vp.disable_3d = true
+	_lo_vp.transparent_bg = false
+	_lo_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_lo_mat.shader = LOWPASS_SHADER
+	_lo_rect.material = _lo_mat
+	_lo_vp.add_child(_lo_rect)
+	add_child(_lo_vp)  # after the raster viewports, like halation
+	surface.set_shader_parameter("raster_lo_tex", _lo_vp.get_texture())
 	_halo_vp.use_hdr_2d = true
 	_halo_vp.disable_3d = true
 	_halo_vp.transparent_bg = false
@@ -115,9 +135,36 @@ func set_profile(p: CrtProfile) -> void:
 		m.set_shader_parameter("beam_sigma_h", p.beam_sigma_h)
 
 
+## A TvControls entry at an OSD level (0..100, 50 neutral).
+func set_tv_control(index: int, level: int) -> void:
+	for m in _mat:
+		m.set_shader_parameter(TvControls.ALL[index].key, TvControls.value(index, level))
+
+
+func set_osd(osd: TvOsd) -> void:
+	_osd = osd
+	for m in _mat:
+		m.set_shader_parameter("osd_tex", osd.texture())
+
+
+func signal_texture() -> Texture2D:
+	return _sig_vp.get_texture()
+
+
 func set_input(i: int) -> void:
 	input = i
-	_sig_width = 0  # re-apply parameters on the next frame
+	_sig_dirty = true
+
+
+func set_decoder(d: int) -> void:
+	decoder = d
+	_sig_dirty = true
+
+
+## The running core, for its subcarrier timing (SystemTiming).
+func set_system(core: String) -> void:
+	system_core = core
+	_timing_key = ""
 
 
 func set_detail_level(level: int) -> void:
@@ -129,17 +176,27 @@ func set_detail_level(level: int) -> void:
 
 func set_strength_level(level: int) -> void:
 	strength_level = level
-	_sig_width = 0
+	_sig_dirty = true
 
 
 ## Feed the current core output. new_frames: frames landed since last call.
-func push(tex: Texture2D, field: int, new_frames: int) -> void:
+## internal: the set's own picture (no-signal screen), which never passes
+## through the composite/RF path.
+func push(tex: Texture2D, field: int, new_frames: int, internal := false) -> void:
 	surface.set_shader_parameter("powered", tex != null)
 	if tex == null or new_frames <= 0:
 		return
 	var src := Vector2i(tex.get_width(), tex.get_height())
 	var lines := src.y * (2 if field != 0 else 1)
-	var size := Vector2i(src.x, lines)
+	var strength: float = SignalPresets.STRENGTHS[strength_level]
+	var use_signal := input != SignalPresets.Connection.RGB and strength > 0.0 and not internal
+	var key := "%s/%d/%d" % [system_core, src.x, int(field != 0)]
+	if key != _timing_key:
+		_timing_key = key
+		_timing = SystemTiming.for_core(system_core, src.x, field != 0)
+		_sig_dirty = true
+	var width := SystemTiming.samples(_timing, src.x) if use_signal else src.x
+	var size := Vector2i(width, lines)
 	if size != _size:
 		_size = size
 		_have_prev = false
@@ -150,19 +207,27 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 		_halo_vp.size = hs
 		_halo_rect.size = Vector2(hs)
 		_halo_mat.set_shader_parameter("raster_size", Vector2(size))
+		_lo_vp.size = size
+		_lo_rect.size = Vector2(size)
+		_lo_mat.set_shader_parameter("width", float(size.x))
 
-	# Signal stage at source resolution (skipped entirely for RGB).
+	# Signal stage (skipped entirely for RGB or strength Off).
 	var raster_src := tex
-	var strength: float = SignalPresets.STRENGTHS[strength_level]
-	if input != SignalPresets.Connection.RGB and strength > 0.0:
-		if _sig_vp.size != src or _sig_width != src.x:
-			_sig_vp.size = src
-			_sig_rect.size = Vector2(src)
-			_sig_width = src.x
-			SignalPresets.apply(_sig_mat, input, src.x, strength)
-		_frame_count += new_frames
+	_frame_count += new_frames
+	_phase_index += new_frames
+	if use_signal:
+		var sig_size := Vector2i(width, src.y)
+		if _sig_vp.size != sig_size or _sig_dirty:
+			_sig_vp.size = sig_size
+			_sig_rect.size = Vector2(sig_size)
+			_sig_dirty = false
+			SignalPresets.apply(_sig_mat, input, strength, decoder)
+			_sig_mat.set_shader_parameter("line_step", _timing.line_step)
+		var steps: Array = _timing.frame_steps
+		_sig_mat.set_shader_parameter("frame_phase", steps[_phase_index % steps.size()])
 		_sig_mat.set_shader_parameter("source_texture", tex)
 		_sig_mat.set_shader_parameter("source_size", Vector2(src))
+		_sig_mat.set_shader_parameter("out_width", float(width))
 		_sig_mat.set_shader_parameter("frame_count", float(_frame_count))
 		_sig_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 		raster_src = _sig_vp.get_texture()
@@ -172,9 +237,10 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 	m.set_shader_parameter("source_tex", raster_src)
 	m.set_shader_parameter("prev_tex", _vp[_cur].get_texture())
 	m.set_shader_parameter("has_prev", _have_prev)
-	m.set_shader_parameter("source_size", Vector2(src))
+	m.set_shader_parameter("source_size", Vector2(width, src.y))
 	m.set_shader_parameter("frame_lines", float(lines))
 	m.set_shader_parameter("field", field)
+	m.set_shader_parameter("osd_on", _osd != null and _osd.visible_now())
 	_vp[nxt].render_target_update_mode = SubViewport.UPDATE_ONCE
 	_cur = nxt
 	_have_prev = true
@@ -182,6 +248,8 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 	surface.set_shader_parameter("raster_tex", _vp[_cur].get_texture())
 	_halo_mat.set_shader_parameter("raster_tex", _vp[_cur].get_texture())
 	_halo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_lo_mat.set_shader_parameter("raster_tex", _vp[_cur].get_texture())
+	_lo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	surface.set_shader_parameter("raster_size", Vector2(size))
 	surface.set_shader_parameter("beam_scale", maxf(float(lines) / 240.0, 1.0))
 	surface.set_shader_parameter("sweep_lines", 2.0 if field != 0 else 1.0)
