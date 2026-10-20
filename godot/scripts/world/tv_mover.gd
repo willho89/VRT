@@ -28,6 +28,8 @@ var xr: XrSession
 var settings: VrtSettings
 var default_transform := Transform3D.IDENTITY
 var grabbing := false
+## The VR room in use: each room keeps its own TV placement.
+var room_id := "empty_room"
 
 var _hand: XRController3D
 var _offset := Transform3D.IDENTITY   # TV origin relative to the hand, yaw only
@@ -203,7 +205,9 @@ func _set_pose(pos: Vector3, yaw: float, pitch: float, s: float) -> void:
 
 
 func _key() -> String:
-	return "placement_ar" if _ar() else "placement_vr"
+	if _ar():
+		return "placement_ar"
+	return "placement_vr" if room_id == "empty_room" else "placement_vr_" + room_id
 
 
 func _ar() -> bool:

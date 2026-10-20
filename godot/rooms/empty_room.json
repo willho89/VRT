@@ -1,0 +1,9 @@
+{
+  "id": "empty_room",
+  "name": "Empty room",
+  "short_name": "EMPTY ROOM",
+  "order": 0,
+  "description": "VRT's default: a plain room with a TV stand, lit only by the CRT.",
+  "builtin": "empty",
+  "tv": { "position": [0, 0.55, -1.6], "yaw_deg": 0 }
+}

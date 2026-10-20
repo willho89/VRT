@@ -21,6 +21,8 @@ var tv: Tv
 var xr: XrSession  # null in flat desktop mode
 var mover: TvMover
 var types: TvTypes
+var rooms: Array[Dictionary] = []
+var select_room: Callable  # app: switch VR rooms
 
 
 func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover, ty: TvTypes) -> void:
@@ -180,6 +182,14 @@ func _pages() -> Dictionary:
 	main.insert(1, {"label": "PLACE TV", "value": func(): return ">",
 		"enter": func(): tv.osd.enter_page("placement", "TV PLACEMENT")})
 
+	# Which VR room (rooms/*.json; docs/rooms.md).
+	main.insert(2, {"label": "ROOM", "value": func():
+			return UserDefs.find(rooms, settings.get_value("room", "id", Room.DEFAULT_ID), Room.DEFAULT_ID).get("short_name", "?"),
+		"change": func(d):
+			if rooms.size() < 2:
+				return
+			var i := UserDefs.index_of(rooms, settings.get_value("room", "id", Room.DEFAULT_ID))
+			select_room.call(rooms[_cycle(i, d, rooms.size())])})
 	var comfort := []
 	if xr:
 		main.insert(2, {"label": "COMFORT", "value": func(): return ">",

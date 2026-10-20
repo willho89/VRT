@@ -24,6 +24,8 @@ var menu_visible := false
 var tv_menu: TvMenu
 var mover: TvMover
 var tv_types := TvTypes.new()
+var rooms: Array[Dictionary] = []
+var fill := DirectionalLight3D.new()
 
 var _trigger_was := false
 var _stats_t := 0.0
@@ -46,18 +48,17 @@ func _ready() -> void:
 	we.environment = env
 	add_child(we)
 
-	var fill := DirectionalLight3D.new()
-	fill.light_energy = 0.35
-	fill.light_color = Color(1.0, 0.95, 0.88)
 	fill.rotation_degrees = Vector3(-45, 30, 0)
 	add_child(fill)
 	add_child(room)
 	add_child(tv)
 	tv_types.load_all()
 	tv.apply_type(tv_types.find(settings.get_value("tv", "type", TvTypes.DEFAULT_ID)))
-	# Centre the cabinet's depth on the stand (front face at the origin of Tv).
-	var depth: float = (tv.cabinet.get("bounds") as AABB).size.z
-	tv.position = Vector3(0, Room.STAND_TOP, -1.6 + depth * 0.5)
+	rooms = UserDefs.load_all("rooms")
+	print("VRT: rooms ", rooms.map(func(r): return r.id))
+	room.build(UserDefs.find(rooms, settings.get_value("room", "id", Room.DEFAULT_ID), Room.DEFAULT_ID))
+	room.apply_lighting(env, fill)
+	tv.global_transform = _room_tv_spot()
 	add_child(host)
 	router.host = host
 	add_child(router)
@@ -113,9 +114,12 @@ func _ready() -> void:
 		menu.set_action_visible("recenter", false)
 
 	mover = TvMover.new(tv, xr_session, settings)
+	mover.room_id = room.def.get("id", Room.DEFAULT_ID)
 	add_child(mover)
 	mover.load_placement()
 	tv_menu = TvMenu.new(settings, tv, xr_session, mover, tv_types)
+	tv_menu.rooms = rooms
+	tv_menu.select_room = _select_room
 	mover.moved.connect(tv.osd.refresh)
 	router.tv_menu_toggled.connect(_toggle_tv_menu)
 	router.osd_button.connect(tv.osd.press)
@@ -264,6 +268,9 @@ func _place_viewer() -> void:
 	var facing := tv.global_transform.basis.z * Vector3(1, 0, 1)
 	var size := tv.global_transform.basis.get_scale().x  # a bigger set wants more room
 	var spot := tv.global_position + facing.normalized() * XrSession.VIEW_DISTANCE * size
+	var fixed = room.spawn()  # a room can fix where you stand
+	if fixed != null:
+		spot = fixed
 	xr_session.place_viewer(spot, tv.global_position)
 	if menu_visible:
 		_place_menu_in_view()
@@ -344,6 +351,25 @@ func _toggle_tv_menu() -> void:
 	else:
 		set_menu_visible(false)
 		tv_menu.open()
+
+
+## The room's default spot for the current TV (its cabinet depth centred
+## there), at the TV's current size.
+func _room_tv_spot() -> Transform3D:
+	var depth: float = (tv.cabinet.get("bounds") as AABB).size.z
+	return room.tv_transform(depth)
+
+
+## Switch VR rooms (TV menu > ROOM). Each room keeps its own TV placement.
+func _select_room(d: Dictionary) -> void:
+	room.build(d)
+	room.apply_lighting(env, fill)
+	settings.set_value("room", "id", d.id)
+	mover.room_id = d.id
+	mover.default_transform = _room_tv_spot()
+	if xr_session == null or not xr_session.passthrough:
+		mover.load_placement()
+		_place_viewer()
 
 
 func _set_passthrough(on: bool) -> void:

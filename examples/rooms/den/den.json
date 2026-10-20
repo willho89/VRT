@@ -1,0 +1,14 @@
+{
+  "id": "den",
+  "name": "Example den",
+  "short_name": "DEN",
+  "order": 50,
+  "description": "Example custom room: a small den with the TV on a table and a couch to sit on.",
+  "model": "den.glb",
+  "scale": 1.0,
+  "tv": { "position": [0, 0.62, -2.3], "yaw_deg": 0 },
+  "spawn": { "position": [0, 0.6] },
+  "lighting": { "ambient_color": "#a08c78", "ambient_energy": 0.25, "fill_energy": 0.2, "surface_ambient": 0.08 },
+  "screen_light": true,
+  "collision": true
+}

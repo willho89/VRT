@@ -42,6 +42,8 @@ VRT ships with no games or videos. Use your own:
   CSS-encrypted DVD images only if you put `libdvdcss.so.2` in `/sdcard/VRT/system/deevee/`.
   Decrypted rips (e.g. MakeMKV) need nothing.
 - `/sdcard/VRT/tvs/` for extra TV types (see [docs/tv-types.md](docs/tv-types.md))
+- `/sdcard/VRT/rooms/` for your own VR rooms, as a glTF model plus JSON (see [docs/rooms.md](docs/rooms.md); try
+  [examples/rooms/den](examples/rooms/den))
 
 ## Using it
 - **Menu button** (left controller), **Select+Start** on a gamepad, or **Esc** opens the **TV guide**

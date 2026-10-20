@@ -4,45 +4,27 @@ extends RefCounted
 ## set's name, cabinet (built-in, procedural box or a glTF model next to the
 ## JSON), tube size and shape, mask, phosphors, beam and glass.
 ##
-## Looked for in res://tvs (bundled) and the user's folders, so new sets can be
-## added without rebuilding: /sdcard/VRT/tvs on Quest, user://tvs elsewhere. A
-## user file with the same "id" as a bundled one replaces it.
+## Looked for in res://tvs (bundled) and the user's folders (UserDefs), so new
+## sets can be added without rebuilding: /sdcard/VRT/tvs on Quest.
 
-const BUILTIN_DIR := "res://tvs"
 const DEFAULT_ID := "vcr_combo_25"
 
 var types: Array[Dictionary] = []   # parsed JSON + "dir" + "profile"
 
 
 func load_all() -> void:
-	types.clear()
-	var dirs := [BUILTIN_DIR, "user://tvs"]
-	if OS.get_name() == "Android":
-		dirs.append("/sdcard/VRT/tvs")
-		dirs.append("/sdcard/Android/data/%s/files/tvs" % VrtSettings.PKG)
-	for d in dirs:
-		for f in DirAccess.get_files_at(d):
-			if f.get_extension().to_lower() == "json":
-				_add(d, d.path_join(f))
-	types.sort_custom(func(a, b): return a.get("order", 100) < b.get("order", 100))
+	types = UserDefs.load_all("tvs")
+	for t in types:
+		t.profile = CrtProfile.from_dict(t)
 	print("VRT: TV types ", types.map(func(t): return t.id))
 
 
 func find(id: String) -> Dictionary:
-	for t in types:
-		if t.id == id:
-			return t
-	for t in types:
-		if t.id == DEFAULT_ID:
-			return t
-	return types[0] if not types.is_empty() else {}
+	return UserDefs.find(types, id, DEFAULT_ID)
 
 
 func index_of(id: String) -> int:
-	for i in types.size():
-		if types[i].id == id:
-			return i
-	return 0
+	return UserDefs.index_of(types, id)
 
 
 ## The cabinet node for a type: built-in, procedural box, or its glTF model
@@ -58,18 +40,3 @@ static func make_cabinet(t: Dictionary) -> Node3D:
 		"vcr_combo":
 			return CabinetVcrCombo.new()
 	return CabinetBox.new(p.size_m(), cfg)
-
-
-func _add(dir: String, path: String) -> void:
-	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not data is Dictionary or not data.has("id"):
-		push_warning("VRT: not a TV type: " + path)
-		return
-	data.dir = dir
-	data.profile = CrtProfile.from_dict(data)
-	data.short_name = str(data.get("short_name", data.get("name", data.id))).left(12).to_upper()
-	for i in types.size():
-		if types[i].id == data.id:
-			types[i] = data
-			return
-	types.append(data)
