@@ -7,7 +7,7 @@ extends RefCounted
 ## enough at consumer curvatures (sagitta of a few cm over half a metre).
 
 const SEGMENTS := Vector2i(48, 36)
-const MARGIN := 0.04  # glass beyond the picture on each side, fraction of size
+const MARGIN := 0.06  # glass beyond the picture on each side, fraction of size
 
 
 static func build(p: CrtProfile) -> ArrayMesh:

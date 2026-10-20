@@ -30,14 +30,23 @@ var _frames_skipped := 0
 func _ready() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.BLACK
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
+	# Dim fill so the cabinet reads in the dark room (the CRT stays the key light).
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.55, 0.55, 0.6)
+	env.ambient_light_energy = 0.2
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
+	var fill := DirectionalLight3D.new()
+	fill.light_energy = 0.35
+	fill.light_color = Color(1.0, 0.95, 0.88)
+	fill.rotation_degrees = Vector3(-45, 30, 0)
+	add_child(fill)
 	add_child(room)
-	tv.position = Vector3(0, Room.STAND_TOP, -1.6)
+	# Centre the cabinet's depth on the stand (front face at the origin of Tv).
+	tv.position = Vector3(0, Room.STAND_TOP, -1.6 + CabinetVcrCombo.D * CabinetVcrCombo.MM * 0.5)
 	add_child(tv)
 	add_child(host)
 	router.host = host

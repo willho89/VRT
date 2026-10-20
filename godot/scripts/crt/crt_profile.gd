@@ -71,6 +71,14 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 @export_range(0.0, 1.0) var corner_falloff := 0.78
 
 
+## 25" mid-90s consumer TV/VCR combo (CabinetVcrCombo), slot mask.
+static func vcr_combo_25() -> CrtProfile:
+	var p := CrtProfile.new()
+	p.display_name = "25\" TV/VCR combo (slot mask)"
+	p.visible_size_mm = Vector2(500.0, 375.0)
+	return p
+
+
 static func generic_shadowmask_27() -> CrtProfile:
 	var p := CrtProfile.new()
 	p.display_name = "Generic 27\" consumer TV (slot mask)"

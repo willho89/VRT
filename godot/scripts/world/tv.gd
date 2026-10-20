@@ -6,10 +6,9 @@ extends Node3D
 
 const SCREEN_RADIANCE := 2.0
 const SAMPLES := Vector2i(16, 12)
-const BEZEL := Vector2(0.06, 0.07)    # bezel width beyond the picture, m
-const CABINET_DEPTH := 0.46
 
-var profile := CrtProfile.generic_shadowmask_27()
+var profile := CrtProfile.vcr_combo_25()
+var cabinet: CabinetVcrCombo
 var pipeline := CrtPipeline.new(profile)
 var screen := MeshInstance3D.new()
 var screen_body := StaticBody3D.new()
@@ -38,8 +37,12 @@ func apply_profile(p: CrtProfile) -> void:
 	var size := p.size_m()
 	_half = size * 0.5
 	screen.mesh = TubeMesh.build(p)
-	var face_h := size.y + 2.0 * BEZEL.y
-	screen.position = Vector3(0, face_h * 0.5 + 0.02, 0)
+
+	for c in _cabinet.get_children():
+		c.queue_free()
+	cabinet = CabinetVcrCombo.new()
+	_cabinet.add_child(cabinet)
+	screen.position = cabinet.screen_origin
 
 	for c in screen_body.get_children():
 		c.queue_free()
@@ -49,38 +52,12 @@ func apply_profile(p: CrtProfile) -> void:
 	shape.shape = box
 	screen_body.add_child(shape)
 
-	for c in _cabinet.get_children():
-		c.queue_free()
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.07, 0.07, 0.075)
-	mat.roughness = 0.55
-	var face := Vector2(size.x + 2.0 * BEZEL.x, face_h)
-	var sag := TubeMesh.edge_sag(p)
-	# Cabinet body behind the bezel.
-	_add_box(Vector3(face.x, face.y, CABINET_DEPTH),
-			Vector3(0, screen.position.y, -sag - CABINET_DEPTH * 0.5), mat)
-	# Bezel frame: four bars around the picture, flush with the glass edge.
-	var depth := sag + 0.03
-	var z := -sag * 0.5 + 0.012
-	_add_box(Vector3(face.x, BEZEL.y, depth), Vector3(0, screen.position.y + (size.y + BEZEL.y) * 0.5, z), mat)
-	_add_box(Vector3(face.x, BEZEL.y, depth), Vector3(0, screen.position.y - (size.y + BEZEL.y) * 0.5, z), mat)
-	_add_box(Vector3(BEZEL.x, size.y, depth), Vector3(-(size.x + BEZEL.x) * 0.5, screen.position.y, z), mat)
-	_add_box(Vector3(BEZEL.x, size.y, depth), Vector3((size.x + BEZEL.x) * 0.5, screen.position.y, z), mat)
-
-
-func _add_box(size: Vector3, pos: Vector3, mat: Material) -> void:
-	var mi := MeshInstance3D.new()
-	var m := BoxMesh.new()
-	m.size = size
-	mi.mesh = m
-	mi.material_override = mat
-	mi.position = pos
-	_cabinet.add_child(mi)
-
 
 ## Called each frame with the core's current output (null when idle).
 func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int) -> void:
 	pipeline.push(tex, field, new_frames)
+	if cabinet:
+		cabinet.set_power_led(tex != null)
 	_sample_cells(image if tex else null)
 
 

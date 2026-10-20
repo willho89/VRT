@@ -7,7 +7,7 @@ render_mode unshaded;
 #include "res://shaders/include/screen_light.gdshaderinc"
 
 uniform vec3 albedo : source_color = vec3(0.55, 0.52, 0.48);
-uniform float ambient = 0.02;
+uniform float ambient = 0.07;
 uniform bool flip_normals = false;
 
 varying vec3 screen_light;
