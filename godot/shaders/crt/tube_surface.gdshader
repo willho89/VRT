@@ -29,6 +29,7 @@ uniform float pincushion = 0.012;
 group_uniforms mask;
 uniform int mask_type = 0;                // 0 slot, 1 dot, 2 aperture grille
 uniform float mask_pitch_mm = 0.82;
+uniform float mask_scale = 1.0;           // Exaggerated detail: coarser than the real tube
 uniform float mask_vpitch_mm = 0.82;
 uniform float phosphor_duty = 0.62;
 uniform float slot_duty = 0.78;
@@ -49,6 +50,10 @@ uniform float beam_sigma_bright = 0.42;
 // more lines (480 frame lines in field mode, 480p) has a physically identical
 // spot, so it covers proportionally more raster lines.
 uniform float beam_scale = 1.0;
+// Raster lines between lines of one sweep: 2 in field mode, where each field
+// lights every other line and the other half has decayed. That 2-line period
+// is the structure actually on the tube at any instant, so fade by it.
+uniform float sweep_lines = 1.0;
 uniform vec2 convergence_r_mm = vec2(0.35, -0.2);
 uniform vec2 convergence_b_mm = vec2(-0.3, 0.25);
 
@@ -90,8 +95,8 @@ float pulse_box(float x, float T, float s, float d, float w) {
 // Per-channel phosphor coverage at m (mm), filtered over footprint fw (mm).
 // Normalised so its far-field average is 1 for every channel.
 vec3 phosphor_mask(vec2 m, vec2 fw) {
-	float P = mask_pitch_mm;
-	float V = mask_vpitch_mm;
+	float P = mask_pitch_mm * mask_scale;
+	float V = mask_vpitch_mm * mask_scale;
 	float stripe = P / 3.0;
 	float lit = phosphor_duty * stripe;
 	vec2 w = fw * filter_width + vec2(edge_soft * stripe);
@@ -144,8 +149,8 @@ float beam(vec2 pic, int c, float footprint_lines) {
 		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0))) * beam_scale;
 		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
 		// flat) rather than let them beat against the pixel grid.
-		float px_per_line = 1.0 / max(footprint_lines, 1e-5);
-		sigma = mix(0.55, sigma, smoothstep(fade_px.x, fade_px.y, px_per_line));
+		float px_per_line = sweep_lines / max(footprint_lines, 1e-5);
+		sigma = mix(0.55 * sweep_lines, sigma, smoothstep(fade_px.x, fade_px.y, px_per_line));
 		float fp = footprint_lines * scanline_filter;
 		float var = sigma * sigma + fp * fp / 12.0;
 		float d = y - l;

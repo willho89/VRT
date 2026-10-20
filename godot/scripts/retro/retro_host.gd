@@ -63,11 +63,42 @@ func start(entry: ContentLibrary.Entry) -> void:
 	var save_dir := root.path_join("save").path_join(entry.core)
 	DirAccess.make_dir_recursive_absolute(save_dir)
 	libretro.call("SetSramPath", save_dir.path_join(entry.title + ".srm"))
+	_apply_managed_options(entry.core)
 	libretro.call("StartContent", root, entry.core, path)
 	current = entry
 	_last_serial = -1
 	print("VRT: started ", entry.core, " ", path)
 	content_started.emit(entry)
+
+
+## Options VRT owns, written into the core's .opt before every start. The
+## frontend saves every option to the file, so a default from an older core
+## build (DeeVee's deinterlace used to default to Bwdif) would otherwise stick.
+const MANAGED_OPTIONS := {
+	# VRT draws interlace on the tube itself; never deinterlace in the core.
+	"deevee": {"deevee_deinterlace": "crt"},
+}
+
+
+func _apply_managed_options(core: String) -> void:
+	if not core in MANAGED_OPTIONS:
+		return
+	var path := root.path_join("core_options").path_join(core + ".opt")
+	var opts: Dictionary = MANAGED_OPTIONS[core].duplicate()
+	var lines := PackedStringArray()
+	if FileAccess.file_exists(path):
+		for line in FileAccess.get_file_as_string(path).split("\n", false):
+			var key := line.get_slice("=", 0).strip_edges()
+			if key in opts:
+				line = '%s = "%s"' % [key, opts[key]]
+				opts.erase(key)
+			lines.append(line)
+	for key in opts:
+		lines.append('%s = "%s"' % [key, opts[key]])
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(lines) + "\n")
 
 
 func stop() -> void:

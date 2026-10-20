@@ -46,8 +46,10 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 ## Beam spot sigma in scanline heights, at black and at full drive.
 @export var beam_sigma_dark := 0.13
 @export var beam_sigma_bright := 0.25
-## Horizontal spot sigma in source pixels (video bandwidth softness).
-@export var beam_sigma_h := 0.45
+## Horizontal spot sigma at black and full drive, in 1/320ths of the picture
+## width (source pixels of a 320 px source). Keeps a CRT soft and lets bright
+## detail bloom sideways, which still reads from across the room.
+@export var beam_sigma_h := Vector2(0.25, 0.40)
 ## Per-channel convergence error at the screen corners, mm (R and B; G is reference).
 @export var convergence_r_mm := Vector2(0.35, -0.2)
 @export var convergence_b_mm := Vector2(-0.3, 0.25)
@@ -66,7 +68,7 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 @export var glass_tint := Color(0.42, 0.44, 0.43)  # neutral-density faceplate
 @export var glass_roughness := 0.06
 ## Diffuse glow scattered in the faceplate (halation).
-@export var halation := 0.10
+@export var halation := 0.14
 ## Brightness at the picture corners relative to the centre (beam landing angle).
 @export_range(0.0, 1.0) var corner_falloff := 0.78
 

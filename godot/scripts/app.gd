@@ -65,7 +65,11 @@ func _ready() -> void:
 		router.bind_controllers(xr_session.left, xr_session.right)
 		menu_panel = MenuPanel3D.new(menu, MENU_SIZE)
 		add_child(menu_panel)
+		menu_panel.use_composition_layer(xr_session)
+		xr.pose_recentered.connect(_place_viewer)
+		xr.session_begun.connect(func(): get_tree().create_timer(1.0).timeout.connect(_place_viewer))
 		menu.set_action_visible("passthrough", xr_session.supports_passthrough())
+		xr_session.set_eye_width(settings.get_value("xr", "eye_width", xr_session.default_eye_width()))
 	else:
 		print("VRT: no OpenXR, flat desktop mode")
 		_flat_cam = FlatCamera.new()
@@ -78,6 +82,7 @@ func _ready() -> void:
 		menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 40)
 		menu.set_action_visible("passthrough", false)
 		menu.set_action_visible("recenter", false)
+		menu.set_action_visible("resolution", false)
 
 	tv.pipeline.set_strength_level(settings.get_value("crt", "signal_strength", SignalPresets.DEFAULT_STRENGTH))
 	tv.pipeline.set_detail_level(settings.get_value("crt", "detail", CrtPipeline.DEFAULT_DETAIL))
@@ -152,15 +157,18 @@ func _process(delta: float) -> void:
 	_frames_seen += n
 	_frames_skipped += maxi(n - 1, 0)
 	if xr_session:
-		_handle_ray()
-		if menu_visible:
+		var on_menu := _handle_ray()
+		if menu_visible and on_menu:
 			var stick := xr_session.right.get_vector2("primary").y + xr_session.left.get_vector2("primary").y
 			if absf(stick) > 0.2:
 				menu.scroll(-stick * delta * 12.0)
+		elif menu_visible and not xr_session.passthrough:
+			xr_session.locomote(delta)
 	_log_stats(delta)
 
 
-func _handle_ray() -> void:
+## Returns true while the ray is on the menu panel.
+func _handle_ray() -> bool:
 	var r := xr_session.ray
 	var trigger := xr_session.right.is_button_pressed("trigger_click")
 	var pressed_edge := trigger and not _trigger_was
@@ -170,13 +178,26 @@ func _handle_ray() -> void:
 
 	if menu_visible:
 		if menu_panel.handle_ray(point, collider, trigger):
-			return
+			return true
 		# Pointing past the menu at the room or a real surface: place the TV.
 		if pressed_edge and collider and collider != tv.screen_body:
 			_place_tv(point, r.get_collision_normal())
-		return
+		return false
 	if collider == tv.screen_body and host.is_running() and host.current.core in POINTER_CORES:
 		host.set_pointer(0, tv.screen_uv(point), trigger)
+	return false
+
+
+## VR room only: stand the viewer in front of the TV, facing it. In AR the
+## room is real, so nothing moves.
+func _place_viewer() -> void:
+	if xr_session == null or xr_session.passthrough:
+		return
+	var facing := tv.global_transform.basis.z * Vector3(1, 0, 1)
+	var spot := tv.global_position + facing.normalized() * XrSession.VIEW_DISTANCE
+	xr_session.place_viewer(spot, tv.global_position)
+	if menu_visible:
+		_place_menu_in_view()
 
 
 func _place_tv(p: Vector3, normal: Vector3) -> void:
@@ -210,12 +231,19 @@ func _on_action(name: String) -> void:
 			xr_session.set_passthrough(not xr_session.passthrough, env)
 			room.set_shown(not xr_session.passthrough)
 		"recenter":
+			_place_viewer()
 			_place_menu_in_view()
 		"detail":
 			var dl: int = (tv.pipeline.detail_level + 1) % CrtPipeline.DETAIL_NAMES.size()
 			tv.pipeline.set_detail_level(dl)
 			settings.set_value("crt", "detail", dl)
 			menu.set_status("CRT detail: " + CrtPipeline.DETAIL_NAMES[dl])
+		"resolution":
+			var widths := xr_session.eye_widths()
+			var ew: int = (settings.get_value("xr", "eye_width", xr_session.default_eye_width()) + 1) % widths.size()
+			xr_session.set_eye_width(ew)
+			settings.set_value("xr", "eye_width", ew)
+			menu.set_status("Resolution: %d px per eye" % widths[ew])
 		"signal":
 			var lv: int = (tv.pipeline.strength_level + 1) % SignalPresets.STRENGTHS.size()
 			tv.pipeline.set_strength_level(lv)
@@ -245,11 +273,14 @@ func _log_stats(delta: float) -> void:
 	_stats_t += delta
 	if menu_visible and Engine.get_process_frames() % 30 == 0:
 		var hz := xr_session.xr.get_display_refresh_rate() if xr_session else 0.0
-		menu.set_perf("%d fps / %d Hz%s  ·  %s" % [Engine.get_frames_per_second(), hz,
+		var eye := xr_session.xr.get_render_target_size() if xr_session else Vector2.ZERO
+		menu.set_perf("%d fps / %d Hz  ·  %dx%d%s  ·  %s" % [Engine.get_frames_per_second(), hz, eye.x, eye.y,
 				"  ·  Quest 2 profile" if xr_session and xr_session.is_quest2 else "",
 				ProjectSettings.get_setting("application/config/version", "dev")])
 	if _stats_t < STATS_INTERVAL:
 		return
+	if xr_session:
+		print("VRT: eye buffer ", xr_session.xr.get_render_target_size(), " x", xr_session.xr.render_target_size_multiplier)
 	if host.is_running():
 		var lr := host.libretro
 		print("VRT stats: %s emu %.2f fps (declared %.2f) frames %d skipped %d field %d dropped %d render %d fps pacing %s" % [

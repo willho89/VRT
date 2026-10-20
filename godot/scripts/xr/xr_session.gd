@@ -7,9 +7,22 @@ signal passthrough_changed(enabled: bool)
 
 const GLOW_ANCHOR_SCENE := preload("res://scenes/glow_anchor.tscn")
 const RAY_LENGTH := 10.0
-const RENDER_SCALE := 1.25
-## Quest 2 (XR2 Gen 1) gets native resolution and a 90 Hz cap for headroom.
-const QUEST2_RENDER_SCALE := 1.0
+## Room-mode locomotion (menu open, not pointing at it): left stick walks,
+## right stick snap-turns around the head.
+const WALK_SPEED := 1.4  # m/s
+const SNAP_TURN_DEG := 30.0
+## Where Recenter puts the viewer: this far in front of the TV, facing it.
+const VIEW_DISTANCE := 1.5
+## Eye-buffer widths offered by the Resolution setting. Absolute, because the
+## runtime's recommended size varies (Quest 3 stock 1680x1760; tools like Quest
+## Games Optimizer override it per app). Panels: Quest 3 2064x2208, Quest 2
+## 1832x1920; lens distortion needs ~1.3x the stock size for 1:1 at the centre.
+## The CRT mask and scanlines resolve from further away the higher this goes.
+const EYE_WIDTHS := [1680, 2064, 2400, 2800]
+const DEFAULT_EYE_WIDTH := 2
+const QUEST2_EYE_WIDTHS := [1440, 1832, 2064, 2304]
+## Quest 2 (XR2 Gen 1) defaults to its panel width and a 90 Hz cap for headroom.
+const QUEST2_DEFAULT_EYE_WIDTH := 1
 const QUEST2_MAX_HZ := 90.0
 
 var xr: OpenXRInterface
@@ -22,6 +35,8 @@ var is_quest2 := false
 var scene_manager: Node
 
 var _beam := MeshInstance3D.new()
+var _base_width := 0.0  # runtime-recommended eye width at multiplier 1
+var _turn_held := false
 
 
 static func try_start() -> OpenXRInterface:
@@ -40,12 +55,12 @@ func _ready() -> void:
 	if RenderingServer.get_rendering_device():
 		vp.vrs_mode = Viewport.VRS_XR
 
-	# Render closer to panel resolution so scanlines and mask resolve from
-	# further away (Quest 3 default target ~1680x1760 vs 2064x2208 panel).
+	# The OpenXR system name is still empty this early; Android's model is not.
+	var model := OS.get_model_name()
 	var system: String = xr.get_system_info().get("XRSystemName", "")
-	is_quest2 = "Quest 2" in system or "Quest2" in system
-	print("VRT: XR system '%s'%s" % [system, " (Quest 2 profile)" if is_quest2 else ""])
-	xr.render_target_size_multiplier = QUEST2_RENDER_SCALE if is_quest2 else RENDER_SCALE
+	is_quest2 = ("Quest 2" in model or "Quest2" in model or "Quest 2" in system
+			or "Quest2" in system)
+	print("VRT: device '%s', XR system '%s'%s" % [model, system, " (Quest 2 profile)" if is_quest2 else ""])
 	add_child(camera)
 	for c in [left, right]:
 		c.pose = &"aim"
@@ -88,6 +103,55 @@ func _process(_delta: float) -> void:
 		length = ray.global_position.distance_to(ray.get_collision_point())
 	_beam.scale = Vector3(1, 1, length)
 	_beam.position = Vector3(0, 0, -length / 2.0)
+
+
+func eye_widths() -> Array:
+	return QUEST2_EYE_WIDTHS if is_quest2 else EYE_WIDTHS
+
+
+func default_eye_width() -> int:
+	return QUEST2_DEFAULT_EYE_WIDTH if is_quest2 else DEFAULT_EYE_WIDTH
+
+
+## The swapchain follows the multiplier on the next frame.
+func set_eye_width(level: int) -> void:
+	if _base_width <= 0.0:
+		_base_width = xr.get_render_target_size().x / xr.render_target_size_multiplier
+	var w: int = eye_widths()[clampi(level, 0, eye_widths().size() - 1)]
+	xr.render_target_size_multiplier = w / maxf(_base_width, 1.0)
+	print("VRT: eye width %d (runtime base %d, x%.3f)" % [w, _base_width, xr.render_target_size_multiplier])
+
+
+## Smooth walk relative to where the head faces, plus snap turn.
+func locomote(delta: float) -> void:
+	var move := left.get_vector2("primary")
+	if move.length() > 0.2:
+		var fwd := -camera.global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized()
+		var right_dir := fwd.cross(Vector3.UP)
+		global_position += (right_dir * move.x + fwd * move.y) * WALK_SPEED * delta
+	var turn := right.get_vector2("primary").x
+	if absf(turn) > 0.7 and not _turn_held:
+		_turn_around_head(-signf(turn) * deg_to_rad(SNAP_TURN_DEG))
+	_turn_held = absf(turn) > 0.4
+
+
+## Move the play space so the head is at `spot` (floor height unchanged),
+## looking toward `look_at_point`.
+func place_viewer(spot: Vector3, look_at_point: Vector3) -> void:
+	var fwd := -camera.global_transform.basis.z
+	var want := look_at_point - spot
+	if Vector2(fwd.x, fwd.z).length() > 0.01 and Vector2(want.x, want.z).length() > 0.01:
+		_turn_around_head(Vector2(fwd.x, fwd.z).angle_to(Vector2(want.x, want.z)) * -1.0)
+	var head := camera.global_position
+	global_position += Vector3(spot.x - head.x, 0.0, spot.z - head.z)
+
+
+func _turn_around_head(angle: float) -> void:
+	var pivot := camera.global_position
+	var t := Transform3D(Basis(Vector3.UP, angle), Vector3.ZERO)
+	global_transform = Transform3D.IDENTITY.translated(pivot) * t * Transform3D.IDENTITY.translated(-pivot) * global_transform
 
 
 func set_ray_visible(v: bool) -> void:

@@ -21,8 +21,13 @@ var strength_level: int = SignalPresets.DEFAULT_STRENGTH
 ## How close to the headset's resolution limit scanlines and mask are kept
 ## visible: the period (in eye-buffer pixels) over which they fade out.
 ## Lower shows more structure from further away at the risk of moire.
-const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5)]
-const DETAIL_NAMES := ["Clean", "Balanced", "Strong"]
+## Exaggerated goes past what the headset can resolve cleanly: a coarser mask
+## and scanlines kept down to ~1 px, trading some shimmer for a CRT look that
+## still shows at couch distance.
+const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5), Vector2(0.8, 1.6)]
+const DETAIL_MASK_SCALE := [1.0, 1.0, 1.0, 1.6]
+const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 2.0, 1.0]
+const DETAIL_NAMES := ["Clean", "Balanced", "Strong", "Exaggerated"]
 const DEFAULT_DETAIL := 2  # Strong: user-approved baseline (2026-10-19)
 var detail_level: int = DEFAULT_DETAIL
 
@@ -107,6 +112,7 @@ func set_profile(p: CrtProfile) -> void:
 	for m in _mat:
 		m.set_shader_parameter("persistence", p.persistence)
 		m.set_shader_parameter("gamma", p.gamma)
+		m.set_shader_parameter("beam_sigma_h", p.beam_sigma_h)
 
 
 func set_input(i: int) -> void:
@@ -117,6 +123,8 @@ func set_input(i: int) -> void:
 func set_detail_level(level: int) -> void:
 	detail_level = level
 	surface.set_shader_parameter("fade_px", DETAIL_FADE_PX[level])
+	surface.set_shader_parameter("mask_scale", DETAIL_MASK_SCALE[level])
+	surface.set_shader_parameter("scanline_filter", DETAIL_SCANLINE_FILTER[level])
 
 
 func set_strength_level(level: int) -> void:
@@ -176,3 +184,4 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 	_halo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	surface.set_shader_parameter("raster_size", Vector2(size))
 	surface.set_shader_parameter("beam_scale", maxf(float(lines) / 240.0, 1.0))
+	surface.set_shader_parameter("sweep_lines", 2.0 if field != 0 else 1.0)

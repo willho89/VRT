@@ -63,3 +63,16 @@ and DVD video looking good. **Treat it as the reference to compare any later cha
 - XR render target ×1.25
 - Lesson: judge mask artifacts on saturated primaries and color bars, not on white. Composite dot crawl
   on solid colors can look like moiré, so separate the two by switching Signal off.
+
+## Baseline update (2026-10-20, Quest 3)
+The user approved these changes in the headset after reporting that the CRT look disappeared at viewing distance:
+- **Horizontal beam spot** in the raster pass: box (held pixel) * Gaussian, sigma 0.25–0.40 of a 320 px pixel, growing
+  with drive. The profile's `beam_sigma_h` had never been connected.
+- **Halation** 0.10 → 0.14.
+- **Field-aware scanline fade:** in field mode, structure fades by the 2-line sweep period (each field lights every
+  other line).
+- **Exaggerated** detail level (opt-in): mask ×1.6, fade 0.8–1.6 px, scanline filter 1.0.
+- **DVDs now really interlace:** VRT forces `deevee_deinterlace = crt` (it had been frozen at Bwdif in the saved .opt).
+- **Eye buffer:** absolute widths, 2400 by default on Quest 3. DVD playback holds 120 Hz up to 2800.
+- Known: on the slot mask, vertical phosphor columns read stronger than scanlines from a distance. That's realistic for
+  slot masks; revisit per profile.
