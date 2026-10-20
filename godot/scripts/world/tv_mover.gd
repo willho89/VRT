@@ -40,6 +40,7 @@ var _anchor: XRAnchor3D
 var _anchor_entity: RefCounted        # OpenXRFbSpatialEntity
 var _anchor_scale := 1.0
 const STORAGE_LOCAL := 0              # OpenXRFbSpatialEntity.STORAGE_LOCAL
+const COMPONENT_STORABLE := 1         # OpenXRFbSpatialEntity.COMPONENT_TYPE_STORABLE
 ## Re-anchor once the set has been still this long (nudges arrive in bursts).
 const REANCHOR_DELAY := 1.0
 var _reanchor_t := 0.0
@@ -261,7 +262,16 @@ func _reanchor() -> void:
 				print("VRT: TV anchored ", entity.get("uuid"))
 			else:
 				print("VRT: TV anchor save failed"))
-		entity.call("save_to_storage", STORAGE_LOCAL)
+		# Saving needs the storable component switched on first.
+		entity.connect("openxr_fb_spatial_entity_set_component_enabled_completed",
+				func(enabled_ok: bool, component: int, _enabled: bool):
+					if component != COMPONENT_STORABLE:
+						return
+					if enabled_ok:
+						entity.call("save_to_storage", STORAGE_LOCAL)
+					else:
+						print("VRT: TV anchor: storable component refused"))
+		entity.call("set_component_enabled", COMPONENT_STORABLE, true)
 		_track(entity))
 
 

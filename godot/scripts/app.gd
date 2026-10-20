@@ -79,6 +79,10 @@ func _ready() -> void:
 		menu_panel.use_composition_layer(xr_session)
 		xr.pose_recentered.connect(_place_viewer)
 		xr.session_begun.connect(func(): get_tree().create_timer(1.0).timeout.connect(_place_viewer))
+		# Come back in the mode the user left (AR or the VR room).
+		xr.session_begun.connect(func():
+			if settings.get_value("xr", "passthrough", false) and xr_session.supports_passthrough():
+				_set_passthrough(true))
 		menu.set_action_visible("passthrough", xr_session.supports_passthrough())
 	else:
 		print("VRT: no OpenXR, flat desktop mode")
@@ -294,9 +298,7 @@ func _on_action(name: String) -> void:
 			tv.osd.close()
 			set_menu_visible(true)
 		"passthrough":
-			xr_session.set_passthrough(not xr_session.passthrough, env)
-			room.set_shown(not xr_session.passthrough)
-			mover.load_placement()  # VR room and real room each keep their own spot
+			_set_passthrough(not xr_session.passthrough)
 		"recenter":
 			_place_viewer()
 			_place_menu_in_view()
@@ -324,6 +326,13 @@ func _toggle_tv_menu() -> void:
 	else:
 		set_menu_visible(false)
 		tv_menu.open()
+
+
+func _set_passthrough(on: bool) -> void:
+	xr_session.set_passthrough(on, env)
+	room.set_shown(not on)
+	mover.load_placement()  # VR room and real room each keep their own spot
+	settings.set_value("xr", "passthrough", on)
 
 
 func _toggle_guide() -> void:
