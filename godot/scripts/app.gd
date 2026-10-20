@@ -234,6 +234,11 @@ func _notification(what: int) -> void:
 
 func _log_stats(delta: float) -> void:
 	_stats_t += delta
+	if menu_visible and Engine.get_process_frames() % 30 == 0:
+		var hz := xr_session.xr.get_display_refresh_rate() if xr_session else 0.0
+		menu.set_perf("%d fps / %d Hz%s  ·  %s" % [Engine.get_frames_per_second(), hz,
+				"  ·  Quest 2 profile" if xr_session and xr_session.is_quest2 else "",
+				ProjectSettings.get_setting("application/config/version", "dev")])
 	if _stats_t < STATS_INTERVAL:
 		return
 	if host.is_running():

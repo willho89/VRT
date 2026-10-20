@@ -18,6 +18,7 @@ var library: ContentLibrary
 var _systems: ItemList
 var _titles: ItemList
 var _status: Label
+var _perf: Label
 var _shown: Array[ContentLibrary.Entry] = []
 var _buttons := {}
 
@@ -31,9 +32,15 @@ func _ready() -> void:
 	root.add_theme_constant_override("separation", 12)
 	add_child(root)
 
+	var header := HBoxContainer.new()
+	root.add_child(header)
 	_status = Label.new()
 	_status.text = "VRT"
-	root.add_child(_status)
+	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_status)
+	_perf = Label.new()
+	_perf.modulate = Color(1, 1, 1, 0.6)
+	header.add_child(_perf)
 
 	var lists := HBoxContainer.new()
 	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -71,6 +78,11 @@ func set_library(lib: ContentLibrary) -> void:
 		_on_system_selected(0)
 	else:
 		_status.text = "No content found. Put ROMs in VRT/roms/<System>/ and DVD images in VRT/video/."
+
+
+## Right-aligned performance readout (for testers without adb).
+func set_perf(text: String) -> void:
+	_perf.text = text
 
 
 func set_status(text: String) -> void:
