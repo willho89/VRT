@@ -43,8 +43,8 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 @export_group("Electron gun")
 @export var gamma := 2.4
 ## Beam spot sigma in scanline heights, at black and at full drive.
-@export var beam_sigma_dark := 0.16
-@export var beam_sigma_bright := 0.30
+@export var beam_sigma_dark := 0.13
+@export var beam_sigma_bright := 0.25
 ## Horizontal spot sigma in source pixels (video bandwidth softness).
 @export var beam_sigma_h := 0.45
 ## Per-channel convergence error at the screen corners, mm (R and B; G is reference).

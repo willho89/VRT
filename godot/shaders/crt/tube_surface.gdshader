@@ -36,7 +36,7 @@ uniform float edge_soft = 0.06;           // phosphor edge blur, fraction of a s
 uniform float filter_width = 1.0;         // filter width in pixels (tent of 2x this)
 // Mask contrast fades to its average as a period shrinks from fade_px.y to
 // fade_px.x pixels: a box filter alone leaves near-Nyquist beats (moire).
-uniform vec2 fade_px = vec2(2.5, 5.0);
+uniform vec2 fade_px = vec2(1.6, 3.5);
 
 group_uniforms beam;
 uniform float beam_sigma_dark = 0.22;

@@ -18,20 +18,23 @@ const PRESETS := {
 	# Separate luma and chroma: no cross-color or dot crawl, chroma still band-limited.
 	Connection.SVIDEO: {
 		"signal_amount": 1.0, "rgb_bypass_mix": 0.0, "composite_artifact": 0.0,
-		"composite_fringing": 0.0, "chroma_delay_px": 0.6, "y_band_px": 0.8,
-		"i_band_px": 2.2, "q_band_px": 3.0, "ghost_strength": 0.0, "noise_luma": 0.004,
+		"composite_fringing": 0.0, "chroma_delay_px": 0.3, "y_band_px": 0.45,
+		"i_band_px": 1.3, "q_band_px": 1.8, "ghost_strength": 0.0, "noise_luma": 0.004,
 		"noise_chroma": 0.006, "rf_amount": 0.0, "phase_jitter": 0.0,
 	},
-	# TSUISHI's shipped defaults: a composite-video television.
+	# A good composite connection to a decent TV: milder than TSUISHI's
+	# defaults (artifact 0.85, Y/I/Q 1.25/2.75/4.25 px), which read as too
+	# blurry and messy in the headset.
 	Connection.COMPOSITE: {
-		"signal_amount": 1.0, "rgb_bypass_mix": 0.0, "composite_artifact": 0.85,
-		"composite_fringing": 0.65, "subcarrier_phase_px": 1.047, "line_phase_amount": 2.094,
-		"phase_jitter": 0.025, "chroma_delay_px": 1.25, "y_band_px": 1.25, "i_band_px": 2.75,
-		"q_band_px": 4.25, "ghost_strength": 0.08, "ghost_offset_px": 6.0, "noise_luma": 0.012,
-		"noise_chroma": 0.018, "rf_amount": 0.0,
+		"signal_amount": 1.0, "rgb_bypass_mix": 0.0, "composite_artifact": 0.40,
+		"composite_fringing": 0.30, "subcarrier_phase_px": 1.047, "line_phase_amount": 2.094,
+		"phase_jitter": 0.012, "chroma_delay_px": 0.6, "y_band_px": 0.6, "i_band_px": 1.6,
+		"q_band_px": 2.4, "ghost_strength": 0.025, "ghost_offset_px": 6.0, "noise_luma": 0.005,
+		"noise_chroma": 0.008, "rf_amount": 0.0,
 	},
 	# "Famicom RF": an 8-bit console on the antenna socket.
 	Connection.RF: {
+		"y_band_px": 1.0, "i_band_px": 2.4, "q_band_px": 3.6,
 		"signal_amount": 1.0, "rgb_bypass_mix": 0.0, "composite_artifact": 1.15,
 		"composite_fringing": 0.92, "phase_jitter": 0.055, "chroma_delay_px": 1.85,
 		"ghost_strength": 0.13, "noise_luma": 0.018, "noise_chroma": 0.026, "rf_amount": 1.0,
