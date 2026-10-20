@@ -13,6 +13,8 @@ shader_type spatial;
 render_mode cull_back, shadows_disabled;
 
 uniform sampler2D raster_tex : filter_linear, repeat_disable;
+uniform sampler2D halation_tex : filter_linear, repeat_disable;
+uniform float halation = 0.06;
 uniform vec2 raster_size = vec2(320.0, 240.0);   // (source px, frame lines)
 uniform bool powered = false;
 
@@ -48,6 +50,7 @@ uniform float exposure = 1.0;
 uniform vec3 glass_tint : source_color = vec3(0.42, 0.44, 0.43);
 uniform float glass_roughness = 0.06;
 uniform float glass_transmission = 0.75;
+uniform float corner_falloff = 0.78;
 
 varying vec3 obj_normal;
 
@@ -181,7 +184,10 @@ void fragment() {
 			beam(pic + convergence_b_mm * corner / visible_mm, 2, footprint_lines));
 		float in_pic = step(0.0, pic.x) * step(pic.x, 1.0) * step(0.0, pic.y) * step(pic.y, 1.0);
 
-		vec3 phosphor = drive * phosphor_mask(m, fw) * in_pic * inside;
-		EMISSION = max(phosphor_to_rec709 * phosphor, vec3(0.0)) * exposure * glass_transmission;
+		float falloff = mix(1.0, corner_falloff, smoothstep(0.2, 1.6, dot(corner, corner)));
+		vec3 phosphor = drive * phosphor_mask(m, fw) * in_pic * inside * falloff;
+		// Scattered glow is not masked: it lives in the glass, in front of the phosphors.
+		vec3 glow = texture(halation_tex, clamp(pic, 0.0, 1.0)).rgb * halation * inside * falloff;
+		EMISSION = max(phosphor_to_rec709 * (phosphor + glow), vec3(0.0)) * exposure * glass_transmission;
 	}
 }

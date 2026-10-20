@@ -8,6 +8,12 @@ GODOT=${GODOT:-$HOME/Applications/vrt-tools/godot/Godot_v4.7.2-stable_linux.x86_
 OUT=$1; TITLE=$2; INPUT=${3:-}; CAM=${4:-1.4,0,0}; WHEN=${5:-8}
 LOG=${OUT%.png}.log
 rm -f "$OUT"
+# New class_name scripts need the editor's class cache refreshed first.
+CACHE=$ROOT/godot/.godot/global_script_class_cache.cfg
+if [ ! -f "$CACHE" ] || [ -n "$(find "$ROOT/godot/scripts" -name '*.gd' -newer "$CACHE" -print -quit)" ]; then
+  timeout 120 "$GODOT" --headless --editor --quit --path "$ROOT/godot" > /dev/null 2>&1
+  touch "$CACHE"
+fi
 # Startup occasionally stalls before the renderer comes up; retry once.
 for try in 1 2; do
   timeout -s INT $(( ${WHEN%.*} + 12 )) "$GODOT" --path "$ROOT/godot" -- "--launch=$TITLE" --menu=0 \

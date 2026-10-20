@@ -7,6 +7,7 @@ signal passthrough_changed(enabled: bool)
 
 const GLOW_ANCHOR_SCENE := preload("res://scenes/glow_anchor.tscn")
 const RAY_LENGTH := 10.0
+const RENDER_SCALE := 1.25
 
 var xr: OpenXRInterface
 var camera := XRCamera3D.new()
@@ -35,6 +36,9 @@ func _ready() -> void:
 	if RenderingServer.get_rendering_device():
 		vp.vrs_mode = Viewport.VRS_XR
 
+	# Render closer to panel resolution so scanlines and mask resolve from
+	# further away (Quest 3 default target ~1680x1760 vs 2064x2208 panel).
+	xr.render_target_size_multiplier = RENDER_SCALE
 	add_child(camera)
 	for c in [left, right]:
 		c.pose = &"aim"

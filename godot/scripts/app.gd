@@ -142,6 +142,10 @@ func _process(delta: float) -> void:
 	_frames_skipped += maxi(n - 1, 0)
 	if xr_session:
 		_handle_ray()
+		if menu_visible:
+			var stick := xr_session.right.get_vector2("primary").y + xr_session.left.get_vector2("primary").y
+			if absf(stick) > 0.2:
+				menu.scroll(-stick * delta * 12.0)
 	_log_stats(delta)
 
 
@@ -196,6 +200,10 @@ func _on_action(name: String) -> void:
 			room.set_shown(not xr_session.passthrough)
 		"recenter":
 			_place_menu_in_view()
+		"input":
+			var i: int = (tv.pipeline.input + 1) % SignalPresets.NAMES.size()
+			tv.pipeline.set_input(i)
+			menu.set_status("TV input: " + SignalPresets.NAMES[i])
 
 
 ## Quest: ask for All Files Access so /sdcard/VRT is readable. Android shows its

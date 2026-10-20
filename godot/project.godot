@@ -54,7 +54,8 @@ VRT_SCREEN_RADIANCE={
 
 [xr]
 
-openxr/enabled=true
+openxr/enabled=false
+openxr/enabled.android=true
 openxr/reference_space=1
 openxr/foveation_level=1
 openxr/foveation_dynamic=true

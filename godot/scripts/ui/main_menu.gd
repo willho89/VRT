@@ -8,7 +8,7 @@ signal action(name: String)
 
 const ACTIONS := [
 	["resume", "Resume"], ["stop", "Stop"], ["save_state", "Save state"],
-	["load_state", "Load state"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
+	["load_state", "Load state"], ["input", "Input"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
 ]
 
 ## 30 for the XR panel (1280x800 px at ~0.9 m); smaller on a desktop window.
@@ -80,6 +80,16 @@ func set_status(text: String) -> void:
 func set_action_visible(name: String, visible_: bool) -> void:
 	if name in _buttons:
 		_buttons[name].visible = visible_
+
+
+## Scroll the title list (or system list if the pointer is over it) by
+## `amount` items; called with thumbstick input while the menu is open.
+func scroll(amount: float) -> void:
+	var list := _titles
+	if _systems.get_global_rect().has_point(_systems.get_global_mouse_position()):
+		list = _systems
+	var bar := list.get_v_scroll_bar()
+	bar.value += amount * 48.0
 
 
 func focus_default() -> void:
