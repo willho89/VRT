@@ -175,3 +175,4 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 	_halo_mat.set_shader_parameter("raster_tex", _vp[_cur].get_texture())
 	_halo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	surface.set_shader_parameter("raster_size", Vector2(size))
+	surface.set_shader_parameter("beam_scale", maxf(float(lines) / 240.0, 1.0))

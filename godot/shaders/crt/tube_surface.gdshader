@@ -45,6 +45,10 @@ uniform float scanline_filter = 2.0;
 group_uniforms beam;
 uniform float beam_sigma_dark = 0.22;
 uniform float beam_sigma_bright = 0.42;
+// Beam sigmas are in scanline heights of a ~240-line picture; a raster with
+// more lines (480 frame lines in field mode, 480p) has a physically identical
+// spot, so it covers proportionally more raster lines.
+uniform float beam_scale = 1.0;
 uniform vec2 convergence_r_mm = vec2(0.35, -0.2);
 uniform vec2 convergence_b_mm = vec2(-0.3, 0.25);
 
@@ -137,7 +141,7 @@ float beam(vec2 pic, int c, float footprint_lines) {
 		}
 		vec3 rgb = texture(raster_tex, vec2(pic.x, (l + 0.5) / raster_size.y)).rgb;
 		float drive = c == 0 ? rgb.r : (c == 1 ? rgb.g : rgb.b);
-		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0)));
+		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0))) * beam_scale;
 		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
 		// flat) rather than let them beat against the pixel grid.
 		float px_per_line = 1.0 / max(footprint_lines, 1e-5);
