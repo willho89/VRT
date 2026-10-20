@@ -61,6 +61,13 @@ func _load() -> void:
 	if xr:
 		xr.set_eye_width(settings.get_value("xr", "eye_width", xr.default_eye_width()))
 		xr.preferred_hz = settings.get_value("xr", "refresh_hz", 0.0)
+		xr.turn_mode = settings.get_value("comfort", "turn", XrSession.Turn.SNAP)
+		xr.snap_angle = settings.get_value("comfort", "snap_angle", 1)
+		xr.turn_speed = settings.get_value("comfort", "turn_speed", 1)
+		xr.walk_speed = settings.get_value("comfort", "walk_speed", 1)
+		xr.walk_by_hand = settings.get_value("comfort", "walk_by_hand", false)
+		xr.vignette = settings.get_value("comfort", "vignette", 1)
+		xr.set_height_offset(settings.get_value("comfort", "height_cm", 0) / 100.0)
 
 
 func _level(i: int) -> int:
@@ -172,7 +179,44 @@ func _pages() -> Dictionary:
 	place.append({"label": "DONE", "enter": func(): tv.osd.close()})
 	main.insert(1, {"label": "PLACE TV", "value": func(): return ">",
 		"enter": func(): tv.osd.enter_page("placement", "TV PLACEMENT")})
-	return {"main": main, "picture": picture, "placement": place}
+
+	var comfort := []
+	if xr:
+		main.insert(2, {"label": "COMFORT", "value": func(): return ">",
+			"enter": func(): tv.osd.enter_page("comfort", "COMFORT")})
+		comfort = [
+			{"label": "TURN", "value": func(): return "SNAP" if xr.turn_mode == XrSession.Turn.SNAP else "SMOOTH",
+				"change": func(_d):
+					xr.turn_mode = XrSession.Turn.SMOOTH if xr.turn_mode == XrSession.Turn.SNAP else XrSession.Turn.SNAP
+					settings.set_value("comfort", "turn", xr.turn_mode)},
+			{"label": "SNAP", "value": func(): return "%d DEG" % XrSession.SNAP_ANGLES[xr.snap_angle],
+				"change": func(d):
+					xr.snap_angle = _cycle(xr.snap_angle, d, XrSession.SNAP_ANGLES.size())
+					settings.set_value("comfort", "snap_angle", xr.snap_angle)},
+			{"label": "TURN SPD", "value": func(): return "%d DEG/S" % XrSession.TURN_SPEEDS[xr.turn_speed],
+				"change": func(d):
+					xr.turn_speed = _cycle(xr.turn_speed, d, XrSession.TURN_SPEEDS.size())
+					settings.set_value("comfort", "turn_speed", xr.turn_speed)},
+			{"label": "WALK SPD", "value": func(): return XrSession.WALK_SPEED_NAMES[xr.walk_speed],
+				"change": func(d):
+					xr.walk_speed = _cycle(xr.walk_speed, d, XrSession.WALK_SPEEDS.size())
+					settings.set_value("comfort", "walk_speed", xr.walk_speed)},
+			{"label": "WALK DIR", "value": func(): return "HAND" if xr.walk_by_hand else "HEAD",
+				"change": func(_d):
+					xr.walk_by_hand = not xr.walk_by_hand
+					settings.set_value("comfort", "walk_by_hand", xr.walk_by_hand)},
+			{"label": "VIGNETTE", "value": func(): return XrSession.VIGNETTE_NAMES[xr.vignette],
+				"change": func(d):
+					xr.vignette = _cycle(xr.vignette, d, XrSession.VIGNETTE_LEVELS.size())
+					settings.set_value("comfort", "vignette", xr.vignette)},
+			{"label": "HEIGHT", "value": func(): return "%+d CM" % settings.get_value("comfort", "height_cm", 0),
+				"change": func(d):
+					var cm := clampi(settings.get_value("comfort", "height_cm", 0) + d * 5, -50, 50)
+					settings.set_value("comfort", "height_cm", cm)
+					xr.set_height_offset(cm / 100.0)},
+			{"label": "RETURN", "enter": func(): tv.osd.press(TvOsd.Key.BACK)},
+		]
+	return {"main": main, "picture": picture, "placement": place, "comfort": comfort}
 
 
 func _eye() -> int:
