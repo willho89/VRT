@@ -8,24 +8,58 @@ against the glass and see the phosphors.
 Inspired by EmuVR, without the physical consoles and media: one TV, in an empty virtual room or
 placed in your real room with passthrough (Quest 3), and it lights up its surroundings.
 
-> **Status: early development.** Milestones M0 (toolchain + XR/libretro spikes) and M1 (libretro
-> host, library, input, menu) are done; M2 (the CRT pipeline) is in progress.
+> **Status: alpha.** The CRT, signal stage, on-TV guide and menu, TV placement, VR room and Quest 3
+> AR are in. Expect rough edges; settings and save formats may still change.
 
-## Features so far
-- Quest 3 at 120 Hz, VR room or passthrough AR. The screen's light falls on the virtual room and,
-  through Meta's room setup data, on your real walls and furniture.
-- Place the TV on the floor or on a real table.
-- Content library for NES, SNES, Sega 8/16-bit (Genesis Plus GX), PC Engine and DVD-Video (via
-  [DeeVee](https://github.com/willho89/DeeVee)). Zipped ROMs work. Point at the screen to click
-  DVD menus.
-- Save/load states, Bluetooth gamepads and Touch controllers.
-- Flat desktop mode (Linux) for development, with an orbit camera.
+## Features
+- A CRT built for a headset: band-limited phosphor masks (slot, dot, aperture grille) you can put
+  your face against, beam and scanlines, real field-by-field interlace for DVDs, halation, glass.
+- Accurate NTSC signal stage (composite, S-Video, RF) with each console's own subcarrier timing,
+  plus TV picture controls.
+- TV types defined in JSON, with your own 3D models; four built in.
+- On-screen TV menu and a 90s-style programme guide, drawn by the TV itself.
+- VR room or passthrough AR on Quest 3: the TV is pinned to your real room with a spatial anchor,
+  real objects occlude it, and its light spills onto your walls.
+- The sound comes from the TV's speakers in 3D. Save states, recents and favourites.
+
+## Install (Quest 2 or Quest 3)
+1. Download the APK from [Releases](https://github.com/willho89/VRT/releases). One APK works on both
+   headsets; VRT detects a Quest 2 and picks lighter defaults.
+2. Your headset needs developer mode. Sideload with [SideQuest](https://sidequestvr.com/) (drag the
+   APK onto it) or `adb install VRT-*.apk`.
+3. Open VRT from *Unknown sources* in your app library. Allow "All files access" when asked, then
+   return to VRT.
+4. The headset needs internet the first time each system is used. VRT downloads emulator cores from
+   the official [libretro buildbot](https://buildbot.libretro.com/), just as RetroArch does (see
+   *Cores* below).
 
 ## Content on the headset
-- `/sdcard/VRT/roms/<System>/...`, e.g. `roms/Genesis/`, `roms/NES/`, `roms/SNES/`, `roms/Master System/`
-- `/sdcard/VRT/video/` for DVD images (`.iso`, `.chd`)
+VRT ships with no games or videos. Use your own:
+- `/sdcard/VRT/roms/<System>/...`, e.g. `roms/NES/`, `roms/SNES/`, `roms/Genesis/`, `roms/Master System/`,
+  `roms/PC Engine/` (zipped ROMs work)
+- `/sdcard/VRT/video/` for DVD images (`.iso`, `.chd`) or `VIDEO_TS` folders
+- `/sdcard/VRT/system/<core>/` for files a core asks for (BIOS images). Optional: DeeVee plays
+  CSS-encrypted DVD images only if you put `libdvdcss.so.2` in `/sdcard/VRT/system/deevee/`.
+  Decrypted rips (e.g. MakeMKV) need nothing.
+- `/sdcard/VRT/tvs/` for extra TV types (see [docs/tv-types.md](docs/tv-types.md))
 
-VRT asks for "All files access" on first start so it can read `/sdcard/VRT`.
+## Using it
+- **Menu button** (left controller), **Select+Start** on a gamepad, or **Esc** opens the **TV guide**
+  on the screen: channels for each system, recent and favourites. Up/down picks, left/right
+  changes channel, L/R jumps by letter, X stars, A plays. You can also point at the TV and pull the
+  trigger.
+- The guide's **VRT** channel has Resume, the **TV menu** (volume, picture, TV type, input, signal,
+  overscan, detail, resolution, refresh rate…), Move TV, save/load state, VR/AR and Recenter.
+- **Move the TV:** point at it and hold the **right grip**. Use the sticks to push/pull, turn and tilt,
+  and add the left grip to scale. Fine steps are under TV menu → PLACE TV.
+- **Walk** (VR room): hold the **left grip** and use the sticks. This works mid-game too.
+- Bluetooth gamepads and the Touch controllers both play.
+
+## Cores
+VRT bundles only [DeeVee](https://github.com/willho89/DeeVee) (DVD-Video, GPL-2.0+, built without
+CSS decryption). FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Sega 8/16-bit) and Mednafen PCE Fast
+(PC Engine) are downloaded on first use from the libretro buildbot. Each keeps its own license, and
+some (Snes9x, Genesis Plus GX) are non-commercial.
 
 ## Building
 Developed on a Steam Deck (Linux). You need Godot 4.7.2 with the Android export templates, JDK 17,

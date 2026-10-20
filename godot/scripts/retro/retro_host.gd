@@ -23,6 +23,11 @@ var current: ContentLibrary.Entry
 var libretro: Node3D
 
 var _last_serial := -1
+var downloader: CoreDownloader
+var _pending: ContentLibrary.Entry  # launch waiting for its core to download
+
+## The core for a launch is being fetched; the launch resumes when it lands.
+signal core_downloading(entry: ContentLibrary.Entry)
 var _state_waiting := false
 
 
@@ -33,6 +38,18 @@ func _ready() -> void:
 	libretro.connect("savestate_ready", _on_savestate_ready)
 	libretro.call("SetInputEnabled", false)  # InputRouter drives the ports
 	install_cores()
+	install_system_files()
+	downloader = CoreDownloader.new(root.path_join("cores"))
+	add_child(downloader)
+	downloader.installed.connect(_on_core_ready)
+	downloader.failed.connect(func(core, why):
+		if _pending and _pending.core == core:
+			_pending = null
+			content_failed.emit("Could not download the %s core (%s). Check the headset's internet connection." % [core, why]))
+	# Fetch the rest in the background so first launches are instant.
+	for core in CoreRegistry.CORES:
+		if not CoreRegistry.CORES[core].get("bundled", false):
+			downloader.request(core)
 
 
 ## Copy bundled cores into root/cores when missing or changed (size check).
@@ -54,7 +71,38 @@ func install_cores() -> void:
 		print("VRT: installed core ", f)
 
 
+## User-supplied system files (BIOS, DeeVee's optional libdvdcss.so.2) go in
+## a reachable folder, /sdcard/VRT/system/<core>/, and are mirrored into each
+## core's private system folder (user://retro/system/<core>/), which users
+## cannot reach on a Quest. VRT ships none of them.
+const USER_SYSTEM_DIR := "/sdcard/VRT/system"
+
+
+func install_system_files() -> void:
+	if OS.get_name() != "Android" or not DirAccess.dir_exists_absolute(USER_SYSTEM_DIR):
+		return
+	for core in DirAccess.get_directories_at(USER_SYSTEM_DIR):
+		var src := USER_SYSTEM_DIR.path_join(core)
+		var dst := root.path_join("system").path_join(core)
+		DirAccess.make_dir_recursive_absolute(dst)
+		for f in DirAccess.get_files_at(src):
+			var data := FileAccess.get_file_as_bytes(src.path_join(f))
+			var to := dst.path_join(f)
+			if FileAccess.file_exists(to) and FileAccess.open(to, FileAccess.READ).get_length() == data.size():
+				continue
+			var out := FileAccess.open(to, FileAccess.WRITE)
+			if out:
+				out.store_buffer(data)
+				out.close()
+				print("VRT: installed system file %s/%s" % [core, f])
+
+
 func start(entry: ContentLibrary.Entry) -> void:
+	if not downloader.is_installed(entry.core):
+		_pending = entry
+		downloader.request(entry.core)
+		core_downloading.emit(entry)
+		return
 	stop()
 	var path := ContentLibrary.resolve_launch_path(entry, root.path_join("temp/content"))
 	if path == "":
@@ -99,6 +147,13 @@ func _apply_managed_options(core: String) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(lines) + "\n")
+
+
+func _on_core_ready(core: String) -> void:
+	if _pending and _pending.core == core:
+		var e := _pending
+		_pending = null
+		start(e)
 
 
 func stop() -> void:

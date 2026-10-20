@@ -71,6 +71,11 @@ func _ready() -> void:
 	menu.action.connect(_on_action)
 	host.content_started.connect(func(e): menu.set_status("Playing: %s  (%s)" % [e.title, e.system]))
 	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
+	host.content_started.connect(_on_started)
+	host.core_downloading.connect(func(e):
+		tv.osd.close()
+		tv.osd.banner("DOWNLOADING %s CORE" % e.system.to_upper(), 120.0)
+		menu.set_status("Downloading the %s core..." % e.system))
 	# The extension creates the core's AudioStreamPlayer3D per start: route it
 	# through the TV's bus so the set's VOLUME applies.
 	host.content_started.connect(func(_e):
@@ -276,14 +281,17 @@ func _place_tv(p: Vector3, normal: Vector3) -> void:
 
 func _on_launch(entry: ContentLibrary.Entry) -> void:
 	host.start(entry)
-	if host.is_running():
-		set_menu_visible(false)
-		tv.osd.close()
-		var recent: PackedStringArray = settings.get_value("library", "recent", PackedStringArray())
-		recent.erase(entry.path)
-		recent.insert(0, entry.path)
-		settings.set_value("library", "recent", recent.slice(0, RECENT_MAX))
-		_refresh_guide()
+
+
+## Content is running (straight away, or after its core downloaded).
+func _on_started(entry: ContentLibrary.Entry) -> void:
+	set_menu_visible(false)
+	tv.osd.close()
+	var recent: PackedStringArray = settings.get_value("library", "recent", PackedStringArray())
+	recent.erase(entry.path)
+	recent.insert(0, entry.path)
+	settings.set_value("library", "recent", recent.slice(0, RECENT_MAX))
+	_refresh_guide()
 
 
 func _on_action(name: String) -> void:

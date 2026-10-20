@@ -31,7 +31,12 @@ cp -u "$DEEVEE/build/android-arm64/deevee_libretro_android.so" "$ROOT/cores/andr
 cp -u "$DEEVEE/deevee_libretro.so" "$ROOT/cores/linux-x86_64/" 2>/dev/null \
   || echo "warning: no DeeVee linux build in $DEEVEE"
 
-# Android cores ship inside the APK.
+# Only DeeVee ships inside the APK; VRT downloads every other core from the
+# libretro buildbot on first need (CoreDownloader), so the release carries no
+# third-party cores (Snes9x and Genesis Plus GX are non-commercial licences).
+# The DeeVee build must be DEEVEE_CSS=dlopen (no CSS code; libdvdcss is
+# user-supplied in its system folder).
 mkdir -p "$ROOT/godot/cores_bundle"
-cp -u "$ROOT"/cores/android-arm64/*.so "$ROOT/godot/cores_bundle/"
+rm -f "$ROOT"/godot/cores_bundle/*.so
+cp "$ROOT/cores/android-arm64/deevee_libretro_android.so" "$ROOT/godot/cores_bundle/"
 ls -la "$ROOT/cores/"*

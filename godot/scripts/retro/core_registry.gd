@@ -1,6 +1,8 @@
 class_name CoreRegistry
 extends RefCounted
-## The libretro cores VRT ships, and how content is matched to them.
+## The libretro cores VRT uses, and how content is matched to them. Only
+## cores marked "bundled" ship in the APK (DeeVee); the rest are downloaded
+## from the libretro buildbot on first need (CoreDownloader).
 ##
 ## Content is matched by folder name first (so ambiguous extensions like .bin,
 ## .iso or .chd go to the right core), then by extension alone when only one
@@ -28,6 +30,7 @@ const CORES := {
 		"folders": ["pce", "pc engine", "turbografx-16", "turbografx", "tg16", "pce-cd"],
 	},
 	"deevee": {
+		"bundled": true,
 		"system": "DVD",
 		"exts": ["iso", "ifo", "img", "chd"],
 		"folders": ["video", "dvd", "movies"],
