@@ -226,9 +226,9 @@ func _draw_to(ci: CanvasItem) -> void:
 		_text(ci, BANNER_POS, _banner)
 
 
-## One menu row: cursor, label padded to 7, then the value or a bar.
+## One menu row: cursor, label padded to 9, then the value or a bar.
 func _line(it: Dictionary, selected: bool) -> String:
-	var s := (">" if selected else " ") + str(it.label).rpad(8)
+	var s := (">" if selected else " ") + str(it.label).rpad(9)
 	if it.has("level"):
 		var lv: int = it.level.call()
 		var cells := int(round(lv / 100.0 * 8.0))

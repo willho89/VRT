@@ -195,13 +195,17 @@ func speaker_transform() -> Transform3D:
 	return t
 
 
-## Screen UV to OSD pixel: through the overscan and pincushion the tube
-## shader applies, so the pointer lands where the text is drawn.
-func screen_to_osd(uv: Vector2) -> Vector2:
+## Screen (glass) UV to picture UV, through the overscan and pincushion the
+## tube shader applies, so a pointer lands on what is drawn there.
+func screen_to_picture(uv: Vector2) -> Vector2:
 	var c := uv * 2.0 - Vector2.ONE
 	c *= Vector2.ONE - 2.0 * overscan
 	c *= 1.0 + profile.pincushion * c.dot(c)
-	return (c * 0.5 + Vector2(0.5, 0.5)) * Vector2(TvOsd.SIZE)
+	return c * 0.5 + Vector2(0.5, 0.5)
+
+
+func screen_to_osd(uv: Vector2) -> Vector2:
+	return screen_to_picture(uv) * Vector2(TvOsd.SIZE)
 
 
 ## UV of a world-space point on the screen face, top-left origin.

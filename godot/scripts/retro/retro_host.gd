@@ -128,11 +128,27 @@ const MANAGED_OPTIONS := {
 }
 
 
+## Options the TV sets at runtime (e.g. DeeVee's TV Display Type from the
+## TV type and WIDESCREEN setting), on top of MANAGED_OPTIONS.
+var option_overrides := {}
+
+
+## Set a core option VRT owns: written before the core's next start, and
+## applied live if that core is running.
+func set_core_option(core: String, key: String, value: String) -> void:
+	if not core in option_overrides:
+		option_overrides[core] = {}
+	option_overrides[core][key] = value
+	if current and current.core == core:
+		libretro.call("SetCoreOption", key, value)
+
+
 func _apply_managed_options(core: String) -> void:
-	if not core in MANAGED_OPTIONS:
+	if not core in MANAGED_OPTIONS and not core in option_overrides:
 		return
 	var path := root.path_join("core_options").path_join(core + ".opt")
-	var opts: Dictionary = MANAGED_OPTIONS[core].duplicate()
+	var opts: Dictionary = MANAGED_OPTIONS.get(core, {}).duplicate()
+	opts.merge(option_overrides.get(core, {}), true)
 	var lines := PackedStringArray()
 	if FileAccess.file_exists(path):
 		for line in FileAccess.get_file_as_string(path).split("\n", false):

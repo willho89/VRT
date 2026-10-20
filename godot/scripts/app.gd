@@ -119,6 +119,8 @@ func _ready() -> void:
 	mover.load_placement()
 	tv_menu = TvMenu.new(settings, tv, xr_session, mover, tv_types)
 	tv_menu.rooms = rooms
+	tv_menu.host = host
+	tv_menu.apply_dvd_display()
 	tv_menu.select_room = _select_room
 	mover.moved.connect(tv.osd.refresh)
 	router.tv_menu_toggled.connect(_toggle_tv_menu)
@@ -129,7 +131,7 @@ func _ready() -> void:
 	_open_guide()
 	# Smoke tests: --launch=<part of a title> starts the first match;
 	# --shot=<png path> saves a screenshot after 8 s, --menu=0 hides the menu.
-	for a in OS.get_cmdline_user_args():
+	for a in _test_args():
 		if a.begins_with("--shot="):
 			# --shot=<png>[@seconds], default 8 s after start
 			var spec := a.trim_prefix("--shot=").split("@")
@@ -256,7 +258,7 @@ func _handle_ray() -> bool:
 	if tv.osd.guide_open:
 		tv.osd.point(tv.screen_to_osd(uv), pressed_edge)
 	elif host.is_running() and host.current.core in POINTER_CORES:
-		host.set_pointer(0, uv, trigger)
+		host.set_pointer(0, tv.screen_to_picture(uv), trigger)
 	return false
 
 
@@ -407,6 +409,45 @@ func _refresh_guide() -> void:
 	tv.osd.refresh()
 
 
+## Sound waiting to be heard: the core's generator queue plus the output
+## device latency. Video is shown this much ahead of its sound.
+func _queued_audio_ms() -> float:
+	var p := host.libretro.get_node_or_null("AudioStreamPlayer3D") as AudioStreamPlayer3D
+	if p == null or not p.playing or not p.stream is AudioStreamGenerator:
+		return -1.0
+	var gen := p.stream as AudioStreamGenerator
+	var pb := p.get_stream_playback() as AudioStreamGeneratorPlayback
+	# Godot sizes the ring to the next power of two (one slot kept free).
+	var ring := nearest_po2(int(gen.buffer_length * gen.mix_rate)) - 1
+	var queued := ring - pb.get_frames_available()
+	_audio_queued_frames = queued
+	_audio_detail = "q %.0f ms out %.0f ms ring %d gen %d Hz mix %d Hz" % [queued / gen.mix_rate * 1000.0,
+			AudioServer.get_output_latency() * 1000.0, ring, gen.mix_rate, AudioServer.get_mix_rate()]
+	return (queued / gen.mix_rate + AudioServer.get_output_latency()) * 1000.0
+
+
+## Command-line test hooks, plus (debug builds) a one-shot args file, since
+## Quest launches can't pass user arguments: /sdcard/VRT/vrt-args.txt, one
+## argument per line, deleted once read.
+const ARGS_FILE := "/sdcard/VRT/vrt-args.txt"
+var _audio_detail := ""
+var _audio_queued_frames := 0.0
+var _drain_t0 := 0
+var _drain_p0 := 0.0
+var _drain_q0 := 0.0
+
+
+func _test_args() -> PackedStringArray:
+	var args := OS.get_cmdline_user_args()
+	if OS.is_debug_build() and FileAccess.file_exists(ARGS_FILE):
+		for line in FileAccess.get_file_as_string(ARGS_FILE).split("\n", false):
+			if line.strip_edges() != "":
+				args.append(line.strip_edges())
+		DirAccess.remove_absolute(ARGS_FILE)
+		print("VRT: test args ", args)
+	return args
+
+
 ## Quest: ask for All Files Access so /sdcard/VRT is readable. Android shows its
 ## own settings page; we rescan when the app regains focus.
 func _request_storage_access() -> void:
@@ -435,10 +476,29 @@ func _log_stats(delta: float) -> void:
 		print("VRT: eye buffer ", xr_session.xr.get_render_target_size(), " x", xr_session.xr.render_target_size_multiplier)
 	if host.is_running():
 		var lr := host.libretro
-		print("VRT stats: %s emu %.2f fps (declared %.2f) frames %d skipped %d field %d dropped %d render %d fps pacing %s" % [
-				host.current.core, _frames_seen / _stats_t, lr.call("GetDeclaredFps"), _frames_seen,
+		# A/V: emulation is paced by the audio buffer, so video can't drift from
+		# the sound; the lip-sync offset is the buffered audio (video leads by
+		# it). av_core: the core's own audio-minus-video output, in ms.
+		var rate: float = maxf(lr.call("GetDeclaredSampleRate"), 1.0)
+		var fps: float = maxf(lr.call("GetDeclaredFps"), 1.0)
+		var pacing: Dictionary = lr.call("GetPacingStats")
+		var av_core := (float(pacing.get("audio_frames", 0)) / rate - float(lr.call("GetFrameCount")) / fps) * 1000.0
+		print("VRT stats: %s emu %.2f fps (declared %.2f) frames %d skipped %d field %d dropped %d render %d fps audio_buf %.0f ms av_core %.0f ms pacing %s" % [
+				host.current.core, _frames_seen / _stats_t, fps, _frames_seen,
 				_frames_skipped, host.video_field(), lr.call("GetDroppedFrameCount"),
-				Engine.get_frames_per_second(), str(lr.call("GetPacingStats"))])
+				Engine.get_frames_per_second(), _queued_audio_ms(),
+				av_core, str(pacing)])
+		# Drain rate of the sink = produced - growth of the queue, per second.
+		var produced := float(pacing.get("audio_frames", 0))
+		var queued_now := _audio_queued_frames
+		if _drain_t0 > 0:
+			var dt := (Time.get_ticks_usec() - _drain_t0) / 1.0e6
+			var drain := ((produced - _drain_p0) - (queued_now - _drain_q0)) / dt
+			_audio_detail += " drain %.0f Hz" % drain
+		_drain_t0 = Time.get_ticks_usec()
+		_drain_p0 = produced
+		_drain_q0 = queued_now
+		print("VRT audio: ", _audio_detail)
 	_stats_t = 0.0
 	_frames_seen = 0
 	_frames_skipped = 0

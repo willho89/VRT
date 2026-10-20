@@ -23,6 +23,10 @@ var mover: TvMover
 var types: TvTypes
 var rooms: Array[Dictionary] = []
 var select_room: Callable  # app: switch VR rooms
+var host: RetroHost
+## WIDESCREEN: how 16:9 DVDs fit a 4:3 tube, like a DVD player's TV setup.
+const WIDESCREEN_LABELS := ["LETTERBOX", "PAN&SCAN"]
+const WIDESCREEN_OPTION := ["4:3_letterbox", "4:3_panscan"]
 
 
 func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover, ty: TvTypes) -> void:
@@ -96,7 +100,8 @@ func _pages() -> Dictionary:
 					return
 				var t: Dictionary = types.types[_cycle(types.index_of(tv.type_id), d, types.types.size())]
 				tv.apply_type(t)
-				settings.set_value("tv", "type", t.id)},
+				settings.set_value("tv", "type", t.id)
+				apply_dvd_display()},
 		{"label": "INPUT", "value": func(): return SignalPresets.NAMES[p.input].to_upper(),
 			"change": func(d):
 				p.set_input(_cycle(p.input, d, SignalPresets.NAMES.size()))
@@ -137,6 +142,10 @@ func _pages() -> Dictionary:
 				xr.set_preferred_hz(hz)
 				settings.set_value("xr", "refresh_hz", hz)})
 	main.append_array([
+		{"label": "WIDE", "value": func(): return "16:9 TV" if _tube_is_wide() else WIDESCREEN_LABELS[settings.get_value("tv", "widescreen", 0)],
+			"change": func(d):
+				settings.set_value("tv", "widescreen", _cycle(settings.get_value("tv", "widescreen", 0), d, WIDESCREEN_LABELS.size()))
+				apply_dvd_display()},
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
 				tv.set_no_signal(_cycle(tv.no_signal, d, NO_SIGNAL_LABELS.size()))
@@ -227,6 +236,20 @@ func _pages() -> Dictionary:
 			{"label": "RETURN", "enter": func(): tv.osd.press(TvOsd.Key.BACK)},
 		]
 	return {"main": main, "picture": picture, "placement": place, "comfort": comfort}
+
+
+func _tube_is_wide() -> bool:
+	var s := tv.profile.visible_size_mm
+	return s.x / s.y > 1.6
+
+
+## Tell DeeVee what kind of TV it is connected to: a 16:9 tube takes
+## anamorphic video as is; a 4:3 one gets letterbox or pan & scan.
+func apply_dvd_display() -> void:
+	if host == null:
+		return
+	var v: String = "16:9" if _tube_is_wide() else WIDESCREEN_OPTION[settings.get_value("tv", "widescreen", 0)]
+	host.set_core_option("deevee", "deevee_tv_display", v)
 
 
 func _eye() -> int:
