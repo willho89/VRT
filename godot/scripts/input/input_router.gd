@@ -38,6 +38,23 @@ var menu_open := false
 var stick_as_dpad := true
 
 var _combo_t := 0.0
+## Test automation: [[time_s, retro_id], ...] pressed for PRESS_TIME each,
+## timed from content start (see set_script_input).
+var _script: Array = []
+var _script_t := 0.0
+const PRESS_TIME := 0.15
+const SCRIPT_NAMES := {"b": R_B, "y": R_Y, "select": R_SELECT, "start": R_START, "up": R_UP,
+		"down": R_DOWN, "left": R_LEFT, "right": R_RIGHT, "a": R_A, "x": R_X, "l": R_L, "r": R_R}
+
+
+## spec: "2:start,3.5:down,4:a" (seconds since content start : button).
+func set_script_input(spec: String) -> void:
+	_script.clear()
+	for item in spec.split(",", false):
+		var kv := item.split(":")
+		if kv.size() == 2 and kv[1] in SCRIPT_NAMES:
+			_script.append([kv[0].to_float(), SCRIPT_NAMES[kv[1]]])
+	_script_t = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -109,6 +126,12 @@ func _process(delta: float) -> void:
 			menu_toggled.emit()
 	else:
 		_combo_t = 0.0
+
+	if not _script.is_empty():
+		_script_t += delta
+		for ev in _script:
+			if _script_t >= ev[0] and _script_t < ev[0] + PRESS_TIME:
+				mask |= 1 << ev[1]
 
 	if menu_open:
 		mask = 0

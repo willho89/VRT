@@ -33,6 +33,7 @@ func content_roots() -> Array:
 		]
 	var home := OS.get_environment("HOME")
 	return [
+		{"path": ProjectSettings.globalize_path("res://../testdata/roms")},
 		{"path": home.path_join("ROMS")},
 		{"path": home.path_join("Videos/DVD"), "core": "deevee"},
 		{"path": home.path_join(".claude/projects/DeeVee/TestISOs"), "core": "deevee"},

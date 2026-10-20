@@ -16,6 +16,7 @@ var router := InputRouter.new()
 var menu := MainMenu.new()
 
 var xr_session: XrSession
+var _flat_cam: FlatCamera
 var menu_panel: MenuPanel3D
 var menu_layer: CanvasLayer
 var menu_visible := false
@@ -58,9 +59,9 @@ func _ready() -> void:
 		menu.set_action_visible("passthrough", xr_session.supports_passthrough())
 	else:
 		print("VRT: no OpenXR, flat desktop mode")
-		var cam := FlatCamera.new()
-		add_child(cam)
-		cam.target = tv.global_position + Vector3(0, 0.26, 0.24)
+		_flat_cam = FlatCamera.new()
+		add_child(_flat_cam)
+		_flat_cam.target = tv.screen.global_position
 		menu_layer = CanvasLayer.new()
 		add_child(menu_layer)
 		menu.font_size = 20
@@ -76,12 +77,26 @@ func _ready() -> void:
 	# --shot=<png path> saves a screenshot after 8 s, --menu=0 hides the menu.
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="):
-			var path := a.trim_prefix("--shot=")
-			get_tree().create_timer(8.0).timeout.connect(func():
+			# --shot=<png>[@seconds], default 8 s after start
+			var spec := a.trim_prefix("--shot=").split("@")
+			var path := spec[0]
+			var when := spec[1].to_float() if spec.size() > 1 else 8.0
+			get_tree().create_timer(when).timeout.connect(func():
 				get_viewport().get_texture().get_image().save_png(path)
 				print("VRT: screenshot ", path))
 		if a == "--menu=0":
 			set_menu_visible.call_deferred(false)
+		if a.begins_with("--input="):
+			router.set_script_input(a.trim_prefix("--input="))
+		if a.begins_with("--cam=") and _flat_cam:
+			# distance_m,yaw_deg,pitch_deg[,offset_x_mm,offset_y_mm] from the screen centre
+			var v := a.trim_prefix("--cam=").split_floats(",")
+			_flat_cam.distance = v[0]
+			_flat_cam.yaw = deg_to_rad(v[1]) if v.size() > 1 else 0.0
+			_flat_cam.pitch = deg_to_rad(v[2]) if v.size() > 2 else 0.0
+			if v.size() > 4:
+				_flat_cam.target += Vector3(v[3], v[4], 0.0) / 1000.0
+			_flat_cam._apply()
 		if a.begins_with("--launch="):
 			var want := a.trim_prefix("--launch=").to_lower()
 			for e in library.entries:
@@ -121,11 +136,10 @@ func _place_menu_in_view() -> void:
 
 func _process(delta: float) -> void:
 	var tex := host.video_texture() if host.is_running() else null
-	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null)
-	if host.is_running():
-		var n := host.take_new_frames()
-		_frames_seen += n
-		_frames_skipped += maxi(n - 1, 0)
+	var n := host.take_new_frames() if tex else 0
+	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n)
+	_frames_seen += n
+	_frames_skipped += maxi(n - 1, 0)
 	if xr_session:
 		_handle_ray()
 	_log_stats(delta)

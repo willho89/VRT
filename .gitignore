@@ -13,3 +13,4 @@ godot/addons/godotopenxrvendors/
 godot/addons/libretro_godot/bin/
 cores/
 godot/cores_bundle/
+testdata/

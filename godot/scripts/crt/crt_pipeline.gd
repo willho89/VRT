@@ -1,0 +1,99 @@
+class_name CrtPipeline
+extends Node
+## Runs the per-frame CRT passes and feeds the tube surface material.
+##
+##   core frame -> raster (ping-pong SubViewports, RGBA16F) -> tube_surface
+##
+## The raster pass renders only when the core delivered a new frame, sized
+## (source width, frame lines); in field mode frame lines are 2x the field.
+
+const RASTER_SHADER := preload("res://shaders/crt/raster.gdshader")
+const SURFACE_SHADER := preload("res://shaders/crt/tube_surface.gdshader")
+
+var profile: CrtProfile
+var surface := ShaderMaterial.new()
+
+var _vp: Array[SubViewport] = []
+var _mat: Array[ShaderMaterial] = []
+var _rect: Array[ColorRect] = []
+var _cur := 0
+var _have_prev := false
+var _size := Vector2i.ZERO
+
+
+func _init(p: CrtProfile) -> void:
+	surface.shader = SURFACE_SHADER
+	for i in 2:
+		var vp := SubViewport.new()
+		vp.use_hdr_2d = true
+		vp.transparent_bg = false
+		vp.disable_3d = true
+		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
+		var mat := ShaderMaterial.new()
+		mat.shader = RASTER_SHADER
+		var rect := ColorRect.new()
+		rect.material = mat
+		vp.add_child(rect)
+		add_child(vp)
+		_vp.append(vp)
+		_mat.append(mat)
+		_rect.append(rect)
+	set_profile(p)
+
+
+func set_profile(p: CrtProfile) -> void:
+	profile = p
+	var s := surface
+	s.set_shader_parameter("visible_mm", p.visible_size_mm)
+	s.set_shader_parameter("corner_radius_mm", p.corner_radius_mm)
+	s.set_shader_parameter("glass_thickness_mm", p.glass_thickness_mm)
+	s.set_shader_parameter("glass_ior", p.glass_ior)
+	s.set_shader_parameter("overscan", p.overscan)
+	s.set_shader_parameter("pincushion", p.pincushion)
+	s.set_shader_parameter("mask_type", p.mask_type)
+	s.set_shader_parameter("mask_pitch_mm", p.mask_pitch_mm)
+	s.set_shader_parameter("mask_vpitch_mm", p.mask_vpitch_mm)
+	s.set_shader_parameter("phosphor_duty", p.phosphor_duty)
+	s.set_shader_parameter("slot_duty", p.slot_duty)
+	s.set_shader_parameter("beam_sigma_dark", p.beam_sigma_dark)
+	s.set_shader_parameter("beam_sigma_bright", p.beam_sigma_bright)
+	s.set_shader_parameter("convergence_r_mm", p.convergence_r_mm)
+	s.set_shader_parameter("convergence_b_mm", p.convergence_b_mm)
+	s.set_shader_parameter("phosphor_to_rec709", CrtColor.phosphor_to_rec709(p))
+	s.set_shader_parameter("glass_tint", p.glass_tint)
+	s.set_shader_parameter("glass_roughness", p.glass_roughness)
+	for m in _mat:
+		m.set_shader_parameter("persistence", p.persistence)
+		m.set_shader_parameter("gamma", p.gamma)
+
+
+## Feed the current core output. new_frames: frames landed since last call.
+func push(tex: Texture2D, field: int, new_frames: int) -> void:
+	surface.set_shader_parameter("powered", tex != null)
+	if tex == null or new_frames <= 0:
+		return
+	var src := Vector2i(tex.get_width(), tex.get_height())
+	var lines := src.y * (2 if field != 0 else 1)
+	var size := Vector2i(src.x, lines)
+	if size != _size:
+		_size = size
+		_have_prev = false
+		for i in 2:
+			_vp[i].size = size
+			_rect[i].size = Vector2(size)
+
+	var nxt := 1 - _cur
+	var m := _mat[nxt]
+	m.set_shader_parameter("source_tex", tex)
+	m.set_shader_parameter("prev_tex", _vp[_cur].get_texture())
+	m.set_shader_parameter("has_prev", _have_prev)
+	m.set_shader_parameter("source_size", Vector2(src))
+	m.set_shader_parameter("frame_lines", float(lines))
+	m.set_shader_parameter("field", field)
+	_vp[nxt].render_target_update_mode = SubViewport.UPDATE_ONCE
+	_cur = nxt
+	_have_prev = true
+
+	surface.set_shader_parameter("raster_tex", _vp[_cur].get_texture())
+	surface.set_shader_parameter("raster_size", Vector2(size))
