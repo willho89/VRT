@@ -109,13 +109,10 @@ func _ready() -> void:
 	for c in [left, right]:
 		c.pose = &"aim"
 		add_child(c)
-		var m := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(0.03, 0.03, 0.08)
-		m.mesh = box
-		c.add_child(m)
 	left.tracker = &"left_hand"
 	right.tracker = &"right_hand"
+	_add_controller_model(&"left_hand", 0)
+	_add_controller_model(&"right_hand", 1)
 
 	ray.target_position = Vector3(0, 0, -RAY_LENGTH)
 	ray.collision_mask = RAY_MASK_VR
@@ -160,6 +157,28 @@ func set_eye_width(level: int) -> void:
 	var w: int = eye_widths()[clampi(level, 0, eye_widths().size() - 1)]
 	xr.render_target_size_multiplier = w / maxf(_base_width, 1.0)
 	print("VRT: eye width %d (runtime base %d, x%.3f)" % [w, _base_width, xr.render_target_size_multiplier])
+
+
+## The headset's own controller models (Quest 2 or Quest 3/Touch Plus), from
+## the runtime via XR_FB_render_model; they are defined at the grip pose. A
+## small box stands in until (or unless) the model loads.
+func _add_controller_model(tracker: StringName, model_type: int) -> void:
+	var grip := XRController3D.new()
+	grip.tracker = tracker
+	grip.pose = &"grip"
+	add_child(grip)
+	var box := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.03, 0.03, 0.08)
+	box.mesh = bm
+	grip.add_child(box)
+	if ClassDB.class_exists("OpenXRFbRenderModel"):
+		var model: Node3D = ClassDB.instantiate("OpenXRFbRenderModel")
+		model.set("render_model_type", model_type)
+		model.connect("openxr_fb_render_model_loaded", func():
+			box.visible = false
+			print("VRT: controller model loaded (%s)" % tracker))
+		grip.add_child(model)
 
 
 ## Walk (head- or hand-relative) and turn (snap or smooth), per the comfort
