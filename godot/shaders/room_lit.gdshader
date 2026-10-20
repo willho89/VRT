@@ -11,13 +11,17 @@ uniform float ambient = 0.07;
 uniform bool flip_normals = false;
 
 varying vec3 screen_light;
+varying float fill;
 
 void vertex() {
 	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	screen_light = vrt_screen_irradiance(world_pos, flip_normals ? -world_normal : world_normal);
+	vec3 n = flip_normals ? -world_normal : world_normal;
+	screen_light = vrt_screen_irradiance(world_pos, n);
+	// Soft directional fill so faces of the same colour still separate.
+	fill = 0.5 + 0.5 * max(dot(n, normalize(vec3(0.35, 0.8, 0.5))), 0.0);
 }
 
 void fragment() {
-	ALBEDO = albedo * (ambient + screen_light);
+	ALBEDO = albedo * (ambient * fill + screen_light);
 }
