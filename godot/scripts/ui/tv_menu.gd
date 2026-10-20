@@ -14,18 +14,24 @@ const BAR_STEP := 2
 var settings: VrtSettings
 var tv: Tv
 var xr: XrSession  # null in flat desktop mode
+var mover: TvMover
 
 
-func _init(s: VrtSettings, t: Tv, x: XrSession) -> void:
+func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover) -> void:
 	settings = s
 	tv = t
 	xr = x
+	mover = m
 	_load()
 	tv.osd.pages = _pages()
 
 
 func open() -> void:
 	tv.osd.open("main", "MENU")
+
+
+func open_placement() -> void:
+	tv.osd.open("placement", "TV PLACEMENT")
 
 
 ## Show the current input the way the set does after switching to it.
@@ -45,6 +51,7 @@ func _load() -> void:
 	tv.osd.set_style(settings.get_value("tv", "osd_style", TvOsd.Style.GREEN))
 	if xr:
 		xr.set_eye_width(settings.get_value("xr", "eye_width", xr.default_eye_width()))
+		xr.preferred_hz = settings.get_value("xr", "refresh_hz", 0.0)
 
 
 func _level(i: int) -> int:
@@ -82,6 +89,17 @@ func _pages() -> Dictionary:
 				var e := _cycle(_eye(), d, xr.eye_widths().size())
 				xr.set_eye_width(e)
 				settings.set_value("xr", "eye_width", e)})
+		# 120 Hz shows 60 fps games and 59.94 Hz video evenly; lower rates
+		# save power and GPU but judder 60 fps motion.
+		main.append({"label": "REFRESH", "value": func(): return "%d HZ" % xr.xr.get_display_refresh_rate(),
+			"change": func(d):
+				var rates := xr.refresh_rates()
+				if rates.is_empty():
+					return
+				var i := rates.find(xr.xr.get_display_refresh_rate())
+				var hz: float = rates[_cycle(maxi(i, 0), d, rates.size())]
+				xr.set_preferred_hz(hz)
+				settings.set_value("xr", "refresh_hz", hz)})
 	main.append_array([
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
@@ -107,7 +125,27 @@ func _pages() -> Dictionary:
 			p.set_tv_control(i, TvControls.DEFAULT_LEVEL)
 		tv.osd.refresh()})
 	picture.append({"label": "RETURN", "enter": func(): tv.osd.press(TvOsd.Key.BACK)})
-	return {"main": main, "picture": picture}
+
+	# Fine placement: left/right steps; hold to repeat. Grab with grip for coarse moves.
+	var place := [
+		{"label": "HEIGHT", "value": func(): return "%d CM" % roundi(tv.global_position.y * 100.0),
+			"change": func(d): mover.nudge("height", d)},
+		{"label": "DEPTH", "value": func(): return "<  >", "change": func(d): mover.nudge("distance", d)},
+		{"label": "SIDE", "value": func(): return "<  >", "change": func(d): mover.nudge("left_right", d)},
+		{"label": "TURN", "value": func(): return "%d DEG" % roundi(rad_to_deg(mover.yaw_angle())),
+			"change": func(d): mover.nudge("yaw", -d)},
+		{"label": "TILT", "value": func(): return "%d DEG" % roundi(rad_to_deg(mover.tilt())),
+			"change": func(d): mover.nudge("tilt", d)},
+		{"label": "SIZE", "value": func(): return "%d%%" % roundi(mover.scale_factor() * 100.0),
+			"change": func(d): mover.nudge("scale", d)},
+	]
+	if xr:
+		place.append({"label": "FACE ME", "enter": func(): mover.face_viewer(); tv.osd.refresh()})
+	place.append({"label": "ON STAND", "enter": func(): mover.reset_to_stand(); tv.osd.refresh()})
+	place.append({"label": "DONE", "enter": func(): tv.osd.close()})
+	main.insert(1, {"label": "PLACE TV", "value": func(): return ">",
+		"enter": func(): tv.osd.enter_page("placement", "TV PLACEMENT")})
+	return {"main": main, "picture": picture, "placement": place}
 
 
 func _eye() -> int:

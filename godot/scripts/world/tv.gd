@@ -15,6 +15,11 @@ var cabinet: CabinetVcrCombo
 var pipeline := CrtPipeline.new(profile)
 var screen := MeshInstance3D.new()
 var screen_body := StaticBody3D.new()
+## The whole set, for grabbing (layer 6). The screen collider sits behind its
+## front face, so pointing queries each layer on its own.
+var cabinet_body := StaticBody3D.new()
+const SCREEN_LAYER := 1 << 4
+const CABINET_LAYER := 1 << 5
 var _cabinet := Node3D.new()
 var _cells := Image.create_empty(SAMPLES.x, SAMPLES.y, false, Image.FORMAT_RGBF)
 var _cells_tex := ImageTexture.create_from_image(_cells)
@@ -57,8 +62,10 @@ func _ready() -> void:
 	screen.material_override = pipeline.surface
 	add_child(screen)
 	add_child(_cabinet)
-	screen_body.collision_layer = 1 << 4  # layer 5: screen (DVD menu pointing)
+	screen_body.collision_layer = SCREEN_LAYER  # layer 5: screen (guide, DVD menus)
 	screen.add_child(screen_body)
+	cabinet_body.collision_layer = CABINET_LAYER
+	add_child(cabinet_body)
 	apply_profile(profile)
 
 
@@ -83,6 +90,16 @@ func apply_profile(p: CrtProfile) -> void:
 	box.size = Vector3(size.x, size.y, 0.01)
 	shape.shape = box
 	screen_body.add_child(shape)
+
+	for c in cabinet_body.get_children():
+		c.queue_free()
+	var cab_shape := CollisionShape3D.new()
+	var cab_box := BoxShape3D.new()
+	var mm := CabinetVcrCombo.MM
+	cab_box.size = Vector3(CabinetVcrCombo.W, CabinetVcrCombo.H, CabinetVcrCombo.D) * mm
+	cab_shape.shape = cab_box
+	cab_shape.position = Vector3(0.0, CabinetVcrCombo.H * 0.5, -CabinetVcrCombo.D * 0.5) * mm
+	cabinet_body.add_child(cab_shape)
 
 
 func set_no_signal(mode: int) -> void:
@@ -135,6 +152,15 @@ func speaker_transform() -> Transform3D:
 	if cabinet and cabinet.speakers.size() == 2:
 		t.origin = (cabinet.speakers[0].global_position + cabinet.speakers[1].global_position) * 0.5
 	return t
+
+
+## Screen UV to OSD pixel: through the overscan and pincushion the tube
+## shader applies, so the pointer lands where the text is drawn.
+func screen_to_osd(uv: Vector2) -> Vector2:
+	var c := uv * 2.0 - Vector2.ONE
+	c *= Vector2.ONE - 2.0 * profile.overscan
+	c *= 1.0 + profile.pincushion * c.dot(c)
+	return (c * 0.5 + Vector2(0.5, 0.5)) * Vector2(TvOsd.SIZE)
 
 
 ## UV of a world-space point on the screen face, top-left origin.

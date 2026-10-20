@@ -7,6 +7,10 @@ signal passthrough_changed(enabled: bool)
 
 const GLOW_ANCHOR_SCENE := preload("res://scenes/glow_anchor.tscn")
 const RAY_LENGTH := 10.0
+## The pointer ray's layers: room, UI, screen; AR adds the real room's scene
+## mesh (layer 2), which in VR would be invisible furniture blocking the TV.
+const RAY_MASK_VR := 0b11001
+const RAY_MASK_AR := 0b11011
 ## Room-mode locomotion (menu open, not pointing at it): left stick walks,
 ## right stick snap-turns around the head.
 const WALK_SPEED := 1.4  # m/s
@@ -19,7 +23,7 @@ const VIEW_DISTANCE := 1.5
 ## 1832x1920; lens distortion needs ~1.3x the stock size for 1:1 at the centre.
 ## The CRT mask and scanlines resolve from further away the higher this goes.
 const EYE_WIDTHS := [1680, 2064, 2400, 2800]
-const DEFAULT_EYE_WIDTH := 2
+const DEFAULT_EYE_WIDTH := 1
 const QUEST2_EYE_WIDTHS := [1440, 1832, 2064, 2304]
 ## Quest 2 (XR2 Gen 1) defaults to its panel width and a 90 Hz cap for headroom.
 const QUEST2_DEFAULT_EYE_WIDTH := 1
@@ -37,6 +41,8 @@ var scene_manager: Node
 var _beam := MeshInstance3D.new()
 var _base_width := 0.0  # runtime-recommended eye width at multiplier 1
 var _turn_held := false
+## Display refresh the user asked for (Hz); 0 = the highest allowed.
+var preferred_hz := 0.0
 
 
 static func try_start() -> OpenXRInterface:
@@ -74,7 +80,7 @@ func _ready() -> void:
 	right.tracker = &"right_hand"
 
 	ray.target_position = Vector3(0, 0, -RAY_LENGTH)
-	ray.collision_mask = 0b11011  # room, real scene, UI, screen
+	ray.collision_mask = RAY_MASK_VR
 	ray.collide_with_areas = false
 	right.add_child(ray)
 	var beam_mesh := BoxMesh.new()
@@ -154,6 +160,15 @@ func _turn_around_head(angle: float) -> void:
 	global_transform = Transform3D.IDENTITY.translated(pivot) * t * Transform3D.IDENTITY.translated(-pivot) * global_transform
 
 
+## Where the pointer ray meets only the given layers (ignoring anything in
+## front), or {} for a miss. Keys: position, collider.
+func ray_hit(mask: int) -> Dictionary:
+	var from := ray.global_position
+	var to := ray.to_global(ray.target_position)
+	var q := PhysicsRayQueryParameters3D.create(from, to, mask)
+	return get_world_3d().direct_space_state.intersect_ray(q)
+
+
 func set_ray_visible(v: bool) -> void:
 	_beam.visible = v
 
@@ -166,6 +181,7 @@ func set_passthrough(enable: bool, env: Environment) -> void:
 	if not supports_passthrough():
 		return
 	passthrough = enable
+	ray.collision_mask = RAY_MASK_AR if enable else RAY_MASK_VR
 	xr.environment_blend_mode = (XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND if enable
 			else XRInterface.XR_ENV_BLEND_MODE_OPAQUE)
 	get_viewport().transparent_bg = enable
@@ -177,14 +193,35 @@ func set_passthrough(enable: bool, env: Environment) -> void:
 
 
 func _on_session_begun() -> void:
+	print("VRT: refresh rates ", xr.get_available_display_refresh_rates())
+	apply_refresh()
+
+
+## Refresh rates this headset offers (Quest 2 capped for headroom).
+func refresh_rates() -> Array:
 	var rates: Array = xr.get_available_display_refresh_rates()
-	print("VRT: refresh rates ", rates)
 	if is_quest2:
 		rates = rates.filter(func(r): return r <= QUEST2_MAX_HZ)
-	if not rates.is_empty():
-		var best: float = rates.max()
-		xr.set_display_refresh_rate(best)
-		Engine.physics_ticks_per_second = int(round(best))
+	rates.sort()
+	return rates
+
+
+func set_preferred_hz(hz: float) -> void:
+	preferred_hz = hz
+	apply_refresh()
+
+
+func apply_refresh() -> void:
+	var rates := refresh_rates()
+	if rates.is_empty():
+		return
+	var hz: float = rates.max()
+	if preferred_hz > 0.0:
+		for r in rates:
+			if absf(r - preferred_hz) < 1.0:
+				hz = r
+	xr.set_display_refresh_rate(hz)
+	Engine.physics_ticks_per_second = int(round(hz))
 
 
 func _on_scene_capture_completed(success: bool) -> void:

@@ -39,6 +39,10 @@ var left: XRController3D
 var right: XRController3D
 var menu_open := false
 var osd_open := false
+## The TV is being carried (TvMover): controllers belong to that, not the game or OSD.
+var grab_active := false
+## Left grip held: the Quest controllers walk and turn instead of playing.
+var walk_active := false
 ## Left stick also drives the d-pad (8/16-bit games are all d-pad).
 var stick_as_dpad := true
 
@@ -53,8 +57,9 @@ const OSD_MAP := {
 	R_UP: TvOsd.Key.UP, R_DOWN: TvOsd.Key.DOWN, R_LEFT: TvOsd.Key.LEFT,
 	R_RIGHT: TvOsd.Key.RIGHT, R_B: TvOsd.Key.ENTER, R_START: TvOsd.Key.ENTER,
 	R_A: TvOsd.Key.BACK, R_Y: TvOsd.Key.BACK, R_SELECT: TvOsd.Key.CLOSE,
+	R_L: TvOsd.Key.PAGE_UP, R_R: TvOsd.Key.PAGE_DOWN, R_X: TvOsd.Key.FAVORITE,
 }
-const OSD_REPEATS := [R_UP, R_DOWN, R_LEFT, R_RIGHT]
+const OSD_REPEATS := [R_UP, R_DOWN, R_LEFT, R_RIGHT, R_L, R_R]
 ## Test automation: [[time_s, retro_id], ...] pressed for PRESS_TIME each,
 ## timed from content start (see set_script_input).
 var _script: Array = []
@@ -114,19 +119,20 @@ func _process(delta: float) -> void:
 		if Input.is_physical_key_pressed(k):
 			mask |= 1 << KEY_MAP[k]
 
-	if left and right and not menu_open:
+	if left and right and not menu_open and not walk_active:
 		var s := left.get_vector2("primary")
 		if s.length() > absf(lx) + absf(ly):
 			lx = s.x
 			ly = -s.y  # OpenXR up is +y, RetroPad up is -y
 		if left.is_button_pressed("ax_button"): mask |= 1 << R_Y
 		if left.is_button_pressed("by_button"): mask |= 1 << R_X
-		if left.is_button_pressed("trigger_click"): mask |= 1 << R_L
+		# Triggers click the pointer while the TV's OSD is up, not L/R.
+		if left.is_button_pressed("trigger_click") and not osd_open: mask |= 1 << R_L
 		if left.is_button_pressed("grip_click"): mask |= 1 << R_L2
 		if left.is_button_pressed("primary_click"): mask |= 1 << R_SELECT
 		if right.is_button_pressed("ax_button"): mask |= 1 << R_B
 		if right.is_button_pressed("by_button"): mask |= 1 << R_A
-		if right.is_button_pressed("trigger_click"): mask |= 1 << R_R
+		if right.is_button_pressed("trigger_click") and not osd_open: mask |= 1 << R_R
 		if right.is_button_pressed("grip_click"): mask |= 1 << R_R2
 		if right.is_button_pressed("primary_click"): mask |= 1 << R_START
 
@@ -159,7 +165,14 @@ func _process(delta: float) -> void:
 	else:
 		_tv_combo_t = 0.0
 
-	if osd_open:
+	if grab_active:
+		_prev_mask = mask
+		mask = 0
+		lx = 0.0
+		ly = 0.0
+		rx = 0.0
+		ry = 0.0
+	elif osd_open:
 		_feed_osd(mask, delta)
 		_prev_mask = mask
 		mask = 0

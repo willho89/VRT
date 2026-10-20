@@ -9,6 +9,10 @@ const H := 7
 const SCALE := 2
 const ADVANCE := (W + 1) * SCALE
 const LINE := (H + 3) * SCALE
+## Private glyphs: level-bar cells and the favourite star.
+const BAR_FULL := "\u0001"
+const BAR_EMPTY := "\u0002"
+const STAR := "\u0003"
 
 const GLYPHS := {
 	"A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
@@ -61,13 +65,25 @@ const GLYPHS := {
 	"?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
 	">": [".#...", "..#..", "...#.", "....#", "...#.", "..#..", ".#..."],
 	"<": ["...#.", "..#..", ".#...", "#....", ".#...", "..#..", "...#."],
-	"|": ["#####", "#####", "#####", "#####", "#####", "#####", "#####"],  # bar block
-	"_": [".....", ".....", ".....", "#####", ".....", ".....", "....."],  # empty bar
+	"&": [".##..", "#..#.", "#.#..", ".#...", "#.#.#", "#..#.", ".##.#"],
+	",": [".....", ".....", ".....", ".....", ".##..", "..#..", ".#..."],
+	"[": [".###.", ".#...", ".#...", ".#...", ".#...", ".#...", ".###."],
+	"]": [".###.", "...#.", "...#.", "...#.", "...#.", "...#.", ".###."],
+	"#": [".#.#.", ".#.#.", "#####", ".#.#.", "#####", ".#.#.", ".#.#."],
+	"=": [".....", ".....", "#####", ".....", "#####", ".....", "....."],
+	"*": [".....", "#.#.#", ".###.", "#####", ".###.", "#.#.#", "....."],
+	"\"": [".#.#.", ".#.#.", ".#.#.", ".....", ".....", ".....", "....."],
+	"_": [".....", ".....", ".....", ".....", ".....", ".....", "#####"],
+	"|": ["..#..", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+	BAR_FULL: ["#####", "#####", "#####", "#####", "#####", "#####", "#####"],
+	BAR_EMPTY: [".....", ".....", ".....", "#####", ".....", ".....", "....."],
+	STAR: ["..#..", "..#..", "#####", ".###.", ".###.", "##.##", "#...#"],
 }
 
 
 ## Draw text with its top-left at pos (OSD pixels) using draw_rect on ci.
-static func draw_text(ci: CanvasItem, pos: Vector2, text: String, color: Color) -> void:
+## scale: OSD pixels per font pixel on each axis (1x2 is the narrow guide face).
+static func draw_text(ci: CanvasItem, pos: Vector2, text: String, color: Color, scale := Vector2i(SCALE, SCALE)) -> void:
 	var x := pos.x
 	for ch in text.to_upper():
 		var g: Array = GLYPHS.get(ch, GLYPHS["?"])
@@ -75,9 +91,9 @@ static func draw_text(ci: CanvasItem, pos: Vector2, text: String, color: Color) 
 			var bits: String = g[row]
 			for col in W:
 				if bits[col] == "#":
-					ci.draw_rect(Rect2(x + col * SCALE, pos.y + row * SCALE, SCALE, SCALE), color)
-		x += ADVANCE
+					ci.draw_rect(Rect2(x + col * scale.x, pos.y + row * scale.y, scale.x, scale.y), color)
+		x += (W + 1) * scale.x
 
 
-static func width(text: String) -> int:
-	return text.length() * ADVANCE - SCALE
+static func width(text: String, scale_x := SCALE) -> int:
+	return text.length() * (W + 1) * scale_x - scale_x

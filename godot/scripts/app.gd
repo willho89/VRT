@@ -5,6 +5,7 @@ extends Node3D
 const MENU_SIZE := Vector2i(1280, 800)
 const POINTER_CORES := ["deevee"]  # cores driven by pointing at the screen
 const STATS_INTERVAL := 5.0
+const RECENT_MAX := 12
 
 var settings := VrtSettings.new()
 var library := ContentLibrary.new()
@@ -21,6 +22,7 @@ var menu_panel: MenuPanel3D
 var menu_layer: CanvasLayer
 var menu_visible := false
 var tv_menu: TvMenu
+var mover: TvMover
 
 var _trigger_was := false
 var _stats_t := 0.0
@@ -55,7 +57,11 @@ func _ready() -> void:
 	add_child(host)
 	router.host = host
 	add_child(router)
-	router.menu_toggled.connect(func(): set_menu_visible(not menu_visible))
+	# Menu button / Select+Start / Esc: the programme guide on the TV. The
+	# floating panel is reached from the guide's VRT channel.
+	router.menu_toggled.connect(_toggle_guide)
+	tv.osd.guide.launch.connect(_on_launch)
+	tv.osd.guide.action.connect(_on_action)
 
 	menu.launch.connect(_on_launch)
 	menu.action.connect(_on_action)
@@ -87,13 +93,17 @@ func _ready() -> void:
 		menu.set_action_visible("passthrough", false)
 		menu.set_action_visible("recenter", false)
 
-	tv_menu = TvMenu.new(settings, tv, xr_session)
+	mover = TvMover.new(tv, xr_session, settings)
+	add_child(mover)
+	mover.load_placement()
+	tv_menu = TvMenu.new(settings, tv, xr_session, mover)
+	mover.moved.connect(tv.osd.refresh)
 	router.tv_menu_toggled.connect(_toggle_tv_menu)
 	router.osd_button.connect(tv.osd.press)
 	host.content_started.connect(func(_e): tv_menu.show_input_banner())
 	_request_storage_access()
 	rescan()
-	set_menu_visible(true)
+	_open_guide()
 	# Smoke tests: --launch=<part of a title> starts the first match;
 	# --shot=<png path> saves a screenshot after 8 s, --menu=0 hides the menu.
 	for a in OS.get_cmdline_user_args():
@@ -111,6 +121,8 @@ func _ready() -> void:
 				print("VRT: screenshot ", path))
 		if a == "--menu=0":
 			set_menu_visible.call_deferred(false)
+		if a.begins_with("--guide="):
+			get_tree().create_timer(a.trim_prefix("--guide=").to_float()).timeout.connect(_open_guide)
 		if a == "--tvmenu":
 			tv_menu.open.call_deferred()
 		if a.begins_with("--input="):
@@ -136,6 +148,7 @@ func rescan() -> void:
 	library.scan(settings.content_roots())
 	print("VRT: library has %d entries in %s" % [library.entries.size(), library.systems()])
 	menu.set_library(library)
+	_refresh_guide()
 
 
 func set_menu_visible(v: bool) -> void:
@@ -176,12 +189,21 @@ func _process(delta: float) -> void:
 			print("VRT fields: ", _field_log)
 	_frames_skipped += maxi(n - 1, 0)
 	if xr_session:
-		var on_menu := _handle_ray()
+		var on_tv := not xr_session.ray_hit(Tv.SCREEN_LAYER | Tv.CABINET_LAYER).is_empty()
+		mover.update(delta, on_tv or mover.grabbing,
+				tv.osd.is_open or menu_visible or not host.is_running())
+		router.grab_active = mover.grabbing
+		var on_menu := _handle_ray() if not mover.grabbing else false
+		# Walking (VR room only): left grip + sticks at any time, even mid-game;
+		# sticks alone when nothing is playing and no menu wants them.
+		var grip_walk := xr_session.left.is_button_pressed("grip_click") and not mover.grabbing
+		var free_walk := not host.is_running() and not tv.osd.is_open and not menu_visible
+		router.walk_active = grip_walk
 		if menu_visible and on_menu:
 			var stick := xr_session.right.get_vector2("primary").y + xr_session.left.get_vector2("primary").y
 			if absf(stick) > 0.2:
 				menu.scroll(-stick * delta * 12.0)
-		elif menu_visible and not xr_session.passthrough:
+		elif not xr_session.passthrough and not mover.grabbing and (grip_walk or free_walk or menu_visible):
 			xr_session.locomote(delta)
 	_log_stats(delta)
 
@@ -202,8 +224,16 @@ func _handle_ray() -> bool:
 		if pressed_edge and collider and collider != tv.screen_body:
 			_place_tv(point, r.get_collision_normal())
 		return false
-	if collider == tv.screen_body and host.is_running() and host.current.core in POINTER_CORES:
-		host.set_pointer(0, tv.screen_uv(point), trigger)
+	# The screen answers the pointer even with something (a real desk in AR)
+	# between it and the hand.
+	var screen := xr_session.ray_hit(Tv.SCREEN_LAYER)
+	if screen.is_empty():
+		return false
+	var uv := tv.screen_uv(screen.position)
+	if tv.osd.guide_open:
+		tv.osd.point(tv.screen_to_osd(uv), pressed_edge)
+	elif host.is_running() and host.current.core in POINTER_CORES:
+		host.set_pointer(0, uv, trigger)
 	return false
 
 
@@ -213,7 +243,8 @@ func _place_viewer() -> void:
 	if xr_session == null or xr_session.passthrough:
 		return
 	var facing := tv.global_transform.basis.z * Vector3(1, 0, 1)
-	var spot := tv.global_position + facing.normalized() * XrSession.VIEW_DISTANCE
+	var size := tv.global_transform.basis.get_scale().x  # a bigger set wants more room
+	var spot := tv.global_position + facing.normalized() * XrSession.VIEW_DISTANCE * size
 	xr_session.place_viewer(spot, tv.global_position)
 	if menu_visible:
 		_place_menu_in_view()
@@ -221,15 +252,24 @@ func _place_viewer() -> void:
 
 func _place_tv(p: Vector3, normal: Vector3) -> void:
 	var to_user := (xr_session.camera.global_position - p) * Vector3(1, 0, 1)
+	var s := tv.global_transform.basis.get_scale()
 	tv.global_position = p if normal.dot(Vector3.UP) > 0.7 else Vector3(p.x, 0.0, p.z) + normal * 0.3
 	if to_user.length() > 0.01:
 		tv.look_at(tv.global_position - to_user, Vector3.UP)
+		tv.scale = s
+	mover.save()
 
 
 func _on_launch(entry: ContentLibrary.Entry) -> void:
 	host.start(entry)
 	if host.is_running():
 		set_menu_visible(false)
+		tv.osd.close()
+		var recent: PackedStringArray = settings.get_value("library", "recent", PackedStringArray())
+		recent.erase(entry.path)
+		recent.insert(0, entry.path)
+		settings.set_value("library", "recent", recent.slice(0, RECENT_MAX))
+		_refresh_guide()
 
 
 func _on_action(name: String) -> void:
@@ -237,33 +277,81 @@ func _on_action(name: String) -> void:
 		"resume":
 			if host.is_running():
 				set_menu_visible(false)
+				tv.osd.close()
 		"stop":
 			host.stop()
 			menu.set_status("Stopped")
 		"save_state":
 			host.quick_save()
 			menu.set_status("State saved")
+			tv.osd.close()
+			tv.osd.banner("STATE SAVED")
 		"load_state":
 			host.quick_load()
 			set_menu_visible(false)
+			tv.osd.close()
+		"panel":
+			tv.osd.close()
+			set_menu_visible(true)
 		"passthrough":
 			xr_session.set_passthrough(not xr_session.passthrough, env)
 			room.set_shown(not xr_session.passthrough)
+			mover.load_placement()  # VR room and real room each keep their own spot
 		"recenter":
 			_place_viewer()
 			_place_menu_in_view()
 		"tv_menu":
 			_toggle_tv_menu()
+		"move_tv":
+			set_menu_visible(false)
+			tv_menu.open_placement()
+		_ when name.begins_with("favorite:"):
+			var path := name.trim_prefix("favorite:")
+			var favs: PackedStringArray = settings.get_value("library", "favorites", PackedStringArray())
+			if path in favs:
+				favs.remove_at(favs.find(path))
+			else:
+				favs.append(path)
+			settings.set_value("library", "favorites", favs)
+			_refresh_guide()
 
 
 ## The set's own menu, on the screen. Closes the floating panel so the TV is
 ## in view and the buttons go to it.
 func _toggle_tv_menu() -> void:
-	if tv.osd.is_open:
+	if tv.osd.is_open and not tv.osd.guide_open:
 		tv.osd.close()
 	else:
 		set_menu_visible(false)
 		tv_menu.open()
+
+
+func _toggle_guide() -> void:
+	if tv.osd.guide_open:
+		tv.osd.close()
+	else:
+		_open_guide()
+
+
+func _open_guide() -> void:
+	set_menu_visible(false)
+	tv.osd.open_guide()
+
+
+## Rebuild the guide's channels, keeping the viewer's place.
+func _refresh_guide() -> void:
+	var ids := ["resume", "tv_menu", "save_state", "load_state", "stop", "panel"]
+	if xr_session:
+		ids.append("recenter")
+		if xr_session.supports_passthrough():
+			ids.append("passthrough")
+	var g := tv.osd.guide
+	var first := g.channels.is_empty()
+	g.set_channels(library, settings.get_value("library", "recent", PackedStringArray()),
+			settings.get_value("library", "favorites", PackedStringArray()), ids)
+	if first and g.channels.size() > 1:
+		g.tune(g.channels[1].name)  # start on recent, or the first system
+	tv.osd.refresh()
 
 
 ## Quest: ask for All Files Access so /sdcard/VRT is readable. Android shows its
