@@ -48,13 +48,13 @@ func _ready() -> void:
 	_titles.item_clicked.connect(func(i, _pos, _btn): launch.emit(_shown[i]))
 	lists.add_child(_titles)
 
-	var bar := HBoxContainer.new()
-	bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	var bar := HFlowContainer.new()  # wraps onto a second row as actions grow
+	bar.alignment = FlowContainer.ALIGNMENT_CENTER
 	root.add_child(bar)
 	for a in ACTIONS:
 		var b := Button.new()
 		b.text = a[1]
-		b.custom_minimum_size = Vector2(124, 64)
+		b.custom_minimum_size = Vector2(180, 64)
 		b.pressed.connect(func(): action.emit(a[0]))
 		bar.add_child(b)
 		_buttons[a[0]] = b

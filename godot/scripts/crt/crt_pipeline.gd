@@ -23,7 +23,7 @@ var strength_level: int = SignalPresets.DEFAULT_STRENGTH
 ## Lower shows more structure from further away at the risk of moire.
 const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5)]
 const DETAIL_NAMES := ["Clean", "Balanced", "Strong"]
-const DEFAULT_DETAIL := 1
+const DEFAULT_DETAIL := 2  # Strong: user-approved baseline (2026-10-19)
 var detail_level: int = DEFAULT_DETAIL
 
 var _sig_vp := SubViewport.new()

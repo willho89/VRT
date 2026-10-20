@@ -50,3 +50,16 @@ libretro frame ─▶ [signal]   (M3; bypass in M2)                       source
 - `SLOT`: in-line R/G/B vertical slots in staggered rows (most consumer TVs, the M2 default)
 - `DOT`: delta triads (monitors, older TVs)
 - `APERTURE`: continuous vertical stripes (Trinitron), plus damper wires
+
+## Approved baseline (2026-10-19, Quest 3)
+The user signed off on this in the headset: no moiré, the mask visible up close, very subtle scanlines,
+and DVD video looking good. **Treat it as the reference to compare any later change against.**
+- Profile `generic_shadowmask_27`: slot mask, 1.0 mm pitch and V-pitch, phosphor duty 0.70,
+  slot duty 0.78; spherical tube, 1.6 m radius, 18 mm corners; pincushion 0.004; beam σ 0.13–0.25
+  lines; corner falloff 0.78; halation 0.10; 12 mm glass
+- Detail: **Strong** (mask/scanline fade over 1.2–2.5 eye-buffer px); tent filter 1.0; scanline
+  filter 2.0
+- Signal: Composite at **Low** strength (signal_amount × 0.35)
+- XR render target ×1.25
+- Lesson: judge mask artifacts on saturated primaries and color bars, not on white. Composite dot crawl
+  on solid colors can look like moiré, so separate the two by switching Signal off.
