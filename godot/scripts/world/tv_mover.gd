@@ -4,6 +4,11 @@ extends Node
 ## TV PLACEMENT page of its OSD. Placement is saved separately for the VR room
 ## and for AR (the real room), including scale.
 ##
+## In AR the set is also pinned to a persistent Meta spatial anchor, so it
+## stays put in the real room across sessions, recentering and guardian
+## changes. AR placements are kept relative to the XR origin (anchors live
+## there too), since walking in the VR room moves the origin.
+##
 ## Grab: point at the set and hold the right grip (the left grip walks). The set follows the hand, kept
 ## upright; while held, right stick Y pushes/pulls, right stick X turns,
 ## left stick Y tilts; holding the other grip too scales it by the change in
@@ -31,6 +36,13 @@ var _tilt := 0.0                      # TV pitch (radians)
 var _scale := 1.0
 var _two_hand_d0 := 0.0
 var _two_hand_s0 := 1.0
+var _anchor: XRAnchor3D
+var _anchor_entity: RefCounted        # OpenXRFbSpatialEntity
+var _anchor_scale := 1.0
+const STORAGE_LOCAL := 0              # OpenXRFbSpatialEntity.STORAGE_LOCAL
+## Re-anchor once the set has been still this long (nudges arrive in bursts).
+const REANCHOR_DELAY := 1.0
+var _reanchor_t := 0.0
 
 
 func _init(t: Tv, x: XrSession, s: VrtSettings) -> void:
@@ -43,12 +55,34 @@ func _init(t: Tv, x: XrSession, s: VrtSettings) -> void:
 ## Restore the saved placement for the current mode (VR room or AR).
 func load_placement() -> void:
 	var saved = settings.get_value("tv", _key(), null)
-	tv.global_transform = saved if saved is Transform3D else default_transform
+	if saved is Transform3D:
+		tv.global_transform = _from_stored(saved)
+	else:
+		tv.global_transform = default_transform
+	if _ar():
+		_load_anchor()
 
 
 func save() -> void:
-	settings.set_value("tv", _key(), tv.global_transform)
+	settings.set_value("tv", _key(), _to_stored(tv.global_transform))
+	if _ar():
+		if _anchors_supported():
+			_drop_anchor()  # stop following the old pose right away
+			_reanchor_t = REANCHOR_DELAY
+		else:
+			print("VRT: TV anchor: spatial anchors not supported here")
 	moved.emit()
+
+
+func _process(delta: float) -> void:
+	if _reanchor_t > 0.0 and not grabbing:
+		_reanchor_t -= delta
+		if _reanchor_t <= 0.0 and _ar():
+			_reanchor()
+	# Follow the anchor: the real room is the reference, not the play space.
+	if _ar() and not grabbing and _anchor and _anchor.get_has_tracking_data():
+		var a := _anchor.global_transform
+		tv.global_transform = Transform3D(a.basis.scaled_local(Vector3.ONE * _anchor_scale), a.origin)
 
 
 func reset_to_stand() -> void:
@@ -168,4 +202,84 @@ func _set_pose(pos: Vector3, yaw: float, pitch: float, s: float) -> void:
 
 
 func _key() -> String:
-	return "placement_ar" if xr and xr.passthrough else "placement_vr"
+	return "placement_ar" if _ar() else "placement_vr"
+
+
+func _ar() -> bool:
+	return xr != null and xr.passthrough
+
+
+func _to_stored(t: Transform3D) -> Transform3D:
+	return xr.global_transform.affine_inverse() * t if _ar() else t
+
+
+func _from_stored(t: Transform3D) -> Transform3D:
+	return xr.global_transform * t if _ar() else t
+
+
+func _anchors_supported() -> bool:
+	if not ClassDB.class_exists("OpenXRFbSpatialEntity") or not Engine.has_singleton("OpenXRFbSpatialEntityStorageExtension"):
+		return false
+	return Engine.get_singleton("OpenXRFbSpatialEntityStorageExtension").call("is_spatial_entity_storage_supported")
+
+
+func _load_anchor() -> void:
+	var uuid: String = settings.get_value("tv", "anchor_uuid", "")
+	print("VRT: TV anchor: load '%s' supported=%s" % [uuid, _anchors_supported()])
+	if uuid == "" or not _anchors_supported() or _anchor_entity:
+		return
+	var q: RefCounted = ClassDB.instantiate("OpenXRFbSpatialEntityQuery")
+	q.call("query_by_uuid", [StringName(uuid)], STORAGE_LOCAL)
+	q.connect("openxr_fb_spatial_entity_query_completed", func(results: Array):
+		if results.is_empty():
+			print("VRT: TV anchor %s not found" % uuid)
+		else:
+			print("VRT: TV anchor found ", uuid)
+			_track(results[0]))
+	q.call("execute")
+
+
+## Replace the anchor with one at the set's current pose.
+func _reanchor() -> void:
+	if not _anchors_supported():
+		return
+	_drop_anchor()
+	var t := tv.global_transform
+	_anchor_scale = t.basis.get_scale().x
+	var rigid := xr.global_transform.affine_inverse() * Transform3D(t.basis.orthonormalized(), t.origin)
+	var entity: RefCounted = ClassDB.class_call_static("OpenXRFbSpatialEntity", "create_spatial_anchor", rigid)
+	print("VRT: TV anchor: creating at ", rigid.origin, " -> ", entity)
+	if entity == null:
+		return
+	entity.connect("openxr_fb_spatial_entity_created", func(ok: bool):
+		if not ok:
+			print("VRT: TV anchor create failed")
+			return
+		entity.connect("openxr_fb_spatial_entity_saved", func(saved: bool, _loc):
+			if saved:
+				settings.set_value("tv", "anchor_uuid", str(entity.get("uuid")))
+				print("VRT: TV anchored ", entity.get("uuid"))
+			else:
+				print("VRT: TV anchor save failed"))
+		entity.call("save_to_storage", STORAGE_LOCAL)
+		_track(entity))
+
+
+func _track(entity: RefCounted) -> void:
+	_anchor_entity = entity
+	_anchor_scale = settings.get_value("tv", "placement_ar", Transform3D()).basis.get_scale().x
+	entity.call("track")
+	_anchor = XRAnchor3D.new()
+	_anchor.tracker = StringName(str(entity.get("uuid")))
+	xr.add_child(_anchor)
+
+
+func _drop_anchor() -> void:
+	if _anchor_entity:
+		_anchor_entity.call("untrack")
+		_anchor_entity.call("erase_from_storage", STORAGE_LOCAL)
+		_anchor_entity.call("destroy")
+		_anchor_entity = null
+	if _anchor:
+		_anchor.queue_free()
+		_anchor = null

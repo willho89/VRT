@@ -39,6 +39,10 @@ var is_quest2 := false
 var scene_manager: Node
 
 var _beam := MeshInstance3D.new()
+## AR occlusion: real-world depth from the Quest 3 depth sensor written into
+## the depth buffer, so real things in front of the TV (hands, furniture)
+## hide it. Null where unsupported (Quest 2).
+var _env_depth: Node3D
 var _base_width := 0.0  # runtime-recommended eye width at multiplier 1
 var _turn_held := false
 ## Display refresh the user asked for (Hz); 0 = the highest allowed.
@@ -101,6 +105,10 @@ func _ready() -> void:
 		scene_manager.connect("openxr_fb_scene_capture_completed", _on_scene_capture_completed)
 
 	xr.session_begun.connect(_on_session_begun)
+	if ClassDB.class_exists("OpenXRMetaEnvironmentDepth"):
+		_env_depth = ClassDB.instantiate("OpenXRMetaEnvironmentDepth")
+		_env_depth.visible = false
+		camera.add_child(_env_depth)
 
 
 func _process(_delta: float) -> void:
@@ -187,6 +195,7 @@ func set_passthrough(enable: bool, env: Environment) -> void:
 	get_viewport().transparent_bg = enable
 	env.background_color = Color(0, 0, 0, 0) if enable else Color(0, 0, 0, 1)
 	get_tree().call_group(&"real_scene", &"set_visible", enable)
+	_set_occlusion(enable)
 	if scene_manager and enable and not scene_manager.call("are_scene_anchors_created"):
 		scene_manager.call("create_scene_anchors")
 	passthrough_changed.emit(enable)
@@ -222,6 +231,20 @@ func apply_refresh() -> void:
 				hz = r
 	xr.set_display_refresh_rate(hz)
 	Engine.physics_ticks_per_second = int(round(hz))
+
+
+func _set_occlusion(enable: bool) -> void:
+	if _env_depth == null or not Engine.has_singleton("OpenXRMetaEnvironmentDepthExtension"):
+		return
+	var ext: Object = Engine.get_singleton("OpenXRMetaEnvironmentDepthExtension")
+	if not ext.call("is_environment_depth_supported"):
+		return
+	if enable and not ext.call("is_environment_depth_started"):
+		ext.call("start_environment_depth")
+	elif not enable and ext.call("is_environment_depth_started"):
+		ext.call("stop_environment_depth")
+	_env_depth.visible = enable
+	print("VRT: AR occlusion ", "on" if enable else "off")
 
 
 func _on_scene_capture_completed(success: bool) -> void:
