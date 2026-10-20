@@ -70,6 +70,8 @@ func _ready() -> void:
 		menu.set_action_visible("passthrough", false)
 		menu.set_action_visible("recenter", false)
 
+	tv.pipeline.set_strength_level(settings.get_value("crt", "signal_strength", SignalPresets.DEFAULT_STRENGTH))
+	tv.pipeline.set_detail_level(settings.get_value("crt", "detail", CrtPipeline.DEFAULT_DETAIL))
 	_request_storage_access()
 	rescan()
 	set_menu_visible(true)
@@ -200,6 +202,16 @@ func _on_action(name: String) -> void:
 			room.set_shown(not xr_session.passthrough)
 		"recenter":
 			_place_menu_in_view()
+		"detail":
+			var dl: int = (tv.pipeline.detail_level + 1) % CrtPipeline.DETAIL_NAMES.size()
+			tv.pipeline.set_detail_level(dl)
+			settings.set_value("crt", "detail", dl)
+			menu.set_status("CRT detail: " + CrtPipeline.DETAIL_NAMES[dl])
+		"signal":
+			var lv: int = (tv.pipeline.strength_level + 1) % SignalPresets.STRENGTHS.size()
+			tv.pipeline.set_strength_level(lv)
+			settings.set_value("crt", "signal_strength", lv)
+			menu.set_status("Signal degradation: " + SignalPresets.STRENGTH_NAMES[lv])
 		"input":
 			var i: int = (tv.pipeline.input + 1) % SignalPresets.NAMES.size()
 			tv.pipeline.set_input(i)

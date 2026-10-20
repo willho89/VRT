@@ -17,6 +17,14 @@ const SURFACE_SHADER := preload("res://shaders/crt/tube_surface.gdshader")
 var profile: CrtProfile
 var surface := ShaderMaterial.new()
 var input: int = SignalPresets.Connection.COMPOSITE
+var strength_level: int = SignalPresets.DEFAULT_STRENGTH
+## How close to the headset's resolution limit scanlines and mask are kept
+## visible: the period (in eye-buffer pixels) over which they fade out.
+## Lower shows more structure from further away at the risk of moire.
+const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5)]
+const DETAIL_NAMES := ["Clean", "Balanced", "Strong"]
+const DEFAULT_DETAIL := 1
+var detail_level: int = DEFAULT_DETAIL
 
 var _sig_vp := SubViewport.new()
 var _sig_mat := ShaderMaterial.new()
@@ -106,6 +114,16 @@ func set_input(i: int) -> void:
 	_sig_width = 0  # re-apply parameters on the next frame
 
 
+func set_detail_level(level: int) -> void:
+	detail_level = level
+	surface.set_shader_parameter("fade_px", DETAIL_FADE_PX[level])
+
+
+func set_strength_level(level: int) -> void:
+	strength_level = level
+	_sig_width = 0
+
+
 ## Feed the current core output. new_frames: frames landed since last call.
 func push(tex: Texture2D, field: int, new_frames: int) -> void:
 	surface.set_shader_parameter("powered", tex != null)
@@ -127,12 +145,13 @@ func push(tex: Texture2D, field: int, new_frames: int) -> void:
 
 	# Signal stage at source resolution (skipped entirely for RGB).
 	var raster_src := tex
-	if input != SignalPresets.Connection.RGB:
+	var strength: float = SignalPresets.STRENGTHS[strength_level]
+	if input != SignalPresets.Connection.RGB and strength > 0.0:
 		if _sig_vp.size != src or _sig_width != src.x:
 			_sig_vp.size = src
 			_sig_rect.size = Vector2(src)
 			_sig_width = src.x
-			SignalPresets.apply(_sig_mat, input, src.x)
+			SignalPresets.apply(_sig_mat, input, src.x, strength)
 		_frame_count += new_frames
 		_sig_mat.set_shader_parameter("source_texture", tex)
 		_sig_mat.set_shader_parameter("source_size", Vector2(src))

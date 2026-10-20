@@ -8,6 +8,11 @@ enum Connection { RGB, SVIDEO, COMPOSITE, RF }
 
 const NAMES := ["RGB", "S-Video", "Composite", "RF"]
 
+## Overall degradation, scaling the shader's signal_amount (0 = clean picture).
+const STRENGTHS := [0.0, 0.35, 0.65, 1.0]
+const STRENGTH_NAMES := ["Off", "Low", "Medium", "High"]
+const DEFAULT_STRENGTH := 1
+
 ## Parameters measured in source pixels (scaled by width / 320) and the one
 ## measured in radians per source pixel (scaled by 320 / width).
 const PIXEL_PARAMS := ["chroma_delay_px", "y_band_px", "i_band_px", "q_band_px", "ghost_offset_px", "sync_jitter_px"]
@@ -44,7 +49,7 @@ const PRESETS := {
 }
 
 
-static func apply(mat: ShaderMaterial, input: int, source_width: int) -> void:
+static func apply(mat: ShaderMaterial, input: int, source_width: int, strength := STRENGTHS[DEFAULT_STRENGTH]) -> void:
 	var k := float(source_width) / 320.0
 	var base: Dictionary = PRESETS[Connection.COMPOSITE].duplicate()
 	base.merge(PRESETS[input], true)
@@ -54,4 +59,6 @@ static func apply(mat: ShaderMaterial, input: int, source_width: int) -> void:
 			v *= k
 		elif key in PER_PIXEL_PARAMS:
 			v /= k
+		if key == "signal_amount":
+			v *= strength
 		mat.set_shader_parameter(key, v)

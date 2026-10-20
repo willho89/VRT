@@ -35,8 +35,12 @@ uniform float slot_duty = 0.78;
 uniform float edge_soft = 0.06;           // phosphor edge blur, fraction of a stripe
 uniform float filter_width = 1.0;         // filter width in pixels (tent of 2x this)
 // Mask contrast fades to its average as a period shrinks from fade_px.y to
-// fade_px.x pixels: a box filter alone leaves near-Nyquist beats (moire).
-uniform vec2 fade_px = vec2(1.6, 3.5);
+// fade_px.x pixels. The margin is wide because the headset compositor
+// resamples the eye buffer again (lens distortion, reprojection): anything
+// left near the eye buffer's Nyquist limit re-aliases there as moire.
+uniform vec2 fade_px = vec2(3.0, 6.0);
+// Extra blur for scanlines as they approach that limit (footprint multiplier).
+uniform float scanline_filter = 2.0;
 
 group_uniforms beam;
 uniform float beam_sigma_dark = 0.22;
@@ -134,7 +138,12 @@ float beam(vec2 pic, int c, float footprint_lines) {
 		vec3 rgb = texture(raster_tex, vec2(pic.x, (l + 0.5) / raster_size.y)).rgb;
 		float drive = c == 0 ? rgb.r : (c == 1 ? rgb.g : rgb.b);
 		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0)));
-		float var = sigma * sigma + footprint_lines * footprint_lines / 12.0;
+		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
+		// flat) rather than let them beat against the pixel grid.
+		float px_per_line = 1.0 / max(footprint_lines, 1e-5);
+		sigma = mix(0.55, sigma, smoothstep(fade_px.x, fade_px.y, px_per_line));
+		float fp = footprint_lines * scanline_filter;
+		float var = sigma * sigma + fp * fp / 12.0;
 		float d = y - l;
 		sum += drive * exp(-0.5 * d * d / var) * inversesqrt(var) / SQRT_2PI;
 	}

@@ -8,7 +8,7 @@ signal action(name: String)
 
 const ACTIONS := [
 	["resume", "Resume"], ["stop", "Stop"], ["save_state", "Save state"],
-	["load_state", "Load state"], ["input", "Input"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
+	["load_state", "Load state"], ["input", "Input"], ["signal", "Signal"], ["detail", "Detail"], ["passthrough", "VR / AR"], ["recenter", "Recenter"],
 ]
 
 ## 30 for the XR panel (1280x800 px at ~0.9 m); smaller on a desktop window.
@@ -54,7 +54,7 @@ func _ready() -> void:
 	for a in ACTIONS:
 		var b := Button.new()
 		b.text = a[1]
-		b.custom_minimum_size = Vector2(180, 64)
+		b.custom_minimum_size = Vector2(124, 64)
 		b.pressed.connect(func(): action.emit(a[0]))
 		bar.add_child(b)
 		_buttons[a[0]] = b

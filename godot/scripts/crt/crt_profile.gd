@@ -21,10 +21,11 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 
 @export_group("Mask")
 @export var mask_type := MaskType.SLOT
-## Horizontal distance between same-color phosphors (triad pitch).
-@export var mask_pitch_mm := 0.82
+## Horizontal distance between same-color phosphors (triad pitch). Real 27"
+## sets are ~0.8 mm; slightly larger reads better in a headset.
+@export var mask_pitch_mm := 1.0
 ## Slot/dot vertical period (slot masks: one slot + bridge).
-@export var mask_vpitch_mm := 0.82
+@export var mask_vpitch_mm := 1.0
 ## Fraction of each phosphor period that is lit phosphor (rest is black matrix).
 @export_range(0.1, 1.0) var phosphor_duty := 0.70
 ## Fraction of each slot period that is open slot (rest is bridge).
