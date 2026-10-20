@@ -8,10 +8,16 @@ const SCREEN_RADIANCE := 2.0
 const NO_SIGNAL_SHADER := preload("res://shaders/crt/no_signal.gdshader")
 const NO_SIGNAL_SIZE := Vector2i(640, 240)
 enum NoSignal { BLUE, SNOW }
+## Everything the set plays (the core's sound, static hiss) goes through this
+## bus; the TV's VOLUME control sets its level.
+const AUDIO_BUS := &"TV"
 const SAMPLES := Vector2i(16, 12)
 
 var profile := CrtProfile.vcr_combo_25()
-var cabinet: CabinetVcrCombo
+## CabinetVcrCombo, CabinetBox or CabinetModel: each has screen_origin,
+## speakers, bounds and set_power_led().
+var cabinet: Node3D
+var type_id := ""
 var pipeline := CrtPipeline.new(profile)
 var screen := MeshInstance3D.new()
 var screen_body := StaticBody3D.new()
@@ -42,6 +48,11 @@ const HISS_DB := -26.0
 func _ready() -> void:
 	add_child(pipeline)
 	add_child(osd)
+	if AudioServer.get_bus_index(AUDIO_BUS) < 0:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, AUDIO_BUS)
+		AudioServer.set_bus_send(AudioServer.bus_count - 1, &"Master")
+	_hiss.bus = AUDIO_BUS
 	pipeline.set_osd(osd)
 	_ns_vp.size = NO_SIGNAL_SIZE
 	_ns_vp.disable_3d = true
@@ -66,20 +77,31 @@ func _ready() -> void:
 	screen.add_child(screen_body)
 	cabinet_body.collision_layer = CABINET_LAYER
 	add_child(cabinet_body)
-	apply_profile(profile)
+	_rebuild(TvTypes.make_cabinet({"profile": profile, "cabinet": {"builtin": "vcr_combo"}}))
 
 
-## Rebuild tube, cabinet and collider for a profile (one active at a time).
-func apply_profile(p: CrtProfile) -> void:
-	profile = p
+## Become another TV type (TvTypes): tube, cabinet, colliders and CRT
+## settings. One type is active at a time.
+func apply_type(t: Dictionary) -> void:
+	if t.is_empty():
+		return
+	type_id = t.id
+	profile = t.profile
+	_rebuild(TvTypes.make_cabinet(t))
+
+
+func _rebuild(cab: Node3D) -> void:
+	var p := profile
 	pipeline.set_profile(p)
+	pipeline.surface.set_shader_parameter("overscan", overscan)  # the set's setting wins
 	var size := p.size_m()
 	_half = size * 0.5
 	screen.mesh = TubeMesh.build(p)
 
 	for c in _cabinet.get_children():
+		_cabinet.remove_child(c)
 		c.queue_free()
-	cabinet = CabinetVcrCombo.new()
+	cabinet = cab
 	_cabinet.add_child(cabinet)
 	screen.position = cabinet.screen_origin
 
@@ -95,11 +117,29 @@ func apply_profile(p: CrtProfile) -> void:
 		c.queue_free()
 	var cab_shape := CollisionShape3D.new()
 	var cab_box := BoxShape3D.new()
-	var mm := CabinetVcrCombo.MM
-	cab_box.size = Vector3(CabinetVcrCombo.W, CabinetVcrCombo.H, CabinetVcrCombo.D) * mm
+	var bounds: AABB = cabinet.get("bounds")
+	cab_box.size = bounds.size
 	cab_shape.shape = cab_box
-	cab_shape.position = Vector3(0.0, CabinetVcrCombo.H * 0.5, -CabinetVcrCombo.D * 0.5) * mm
+	cab_shape.position = bounds.get_center()
 	cabinet_body.add_child(cab_shape)
+
+
+## Volume 0..100 on a perceptual (squared) curve; 0 mutes.
+func set_volume(level: int) -> void:
+	var bus := AudioServer.get_bus_index(AUDIO_BUS)
+	var lin := pow(clampi(level, 0, 100) / 100.0, 2.0)
+	AudioServer.set_bus_mute(bus, level <= 0)
+	AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(lin, 1e-4)))
+
+
+## Picture hidden under the bezel on each side, as a fraction (TV setting;
+## the profile's own figure is only a default).
+var overscan := Vector2(0.03, 0.03)
+
+
+func set_overscan(fraction: float) -> void:
+	overscan = Vector2(fraction, fraction)
+	pipeline.surface.set_shader_parameter("overscan", overscan)
 
 
 func set_no_signal(mode: int) -> void:
@@ -111,7 +151,7 @@ func set_no_signal(mode: int) -> void:
 ## set then shows its own no-signal screen at 60 Hz).
 func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int, delta: float) -> void:
 	if cabinet:
-		cabinet.set_power_led(true)
+		cabinet.call("set_power_led", true)
 	if tex:
 		_ns_t = 0.0
 		if _hiss.playing:
@@ -149,8 +189,9 @@ func _feed_hiss() -> void:
 ## Where the set's sound comes from: between its speaker grilles.
 func speaker_transform() -> Transform3D:
 	var t := screen.global_transform
-	if cabinet and cabinet.speakers.size() == 2:
-		t.origin = (cabinet.speakers[0].global_position + cabinet.speakers[1].global_position) * 0.5
+	var sp: Array = cabinet.get("speakers") if cabinet else []
+	if sp.size() == 2 and sp[0].is_inside_tree():
+		t.origin = (sp[0].global_position + sp[1].global_position) * 0.5
 	return t
 
 
@@ -158,7 +199,7 @@ func speaker_transform() -> Transform3D:
 ## shader applies, so the pointer lands where the text is drawn.
 func screen_to_osd(uv: Vector2) -> Vector2:
 	var c := uv * 2.0 - Vector2.ONE
-	c *= Vector2.ONE - 2.0 * profile.overscan
+	c *= Vector2.ONE - 2.0 * overscan
 	c *= 1.0 + profile.pincushion * c.dot(c)
 	return (c * 0.5 + Vector2(0.5, 0.5)) * Vector2(TvOsd.SIZE)
 

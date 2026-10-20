@@ -55,7 +55,7 @@ func _init(t: Tv, x: XrSession, s: VrtSettings) -> void:
 
 ## Restore the saved placement for the current mode (VR room or AR).
 func load_placement() -> void:
-	var saved = settings.get_value("tv", _key(), null)
+	var saved = settings.get_value("tv", _key(), false)  # (a null default means "none" to ConfigFile)
 	if saved is Transform3D:
 		tv.global_transform = _from_stored(saved)
 	else:

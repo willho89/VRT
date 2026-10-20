@@ -1,0 +1,17 @@
+{
+  "id": "monitor_14",
+  "name": "14-inch broadcast monitor",
+  "short_name": "MONITOR 14",
+  "order": 20,
+  "description": "Studio/broadcast-style RGB monitor: aperture grille, sharp small spot (strong scanlines), SMPTE-C phosphors at D65, short persistence.",
+  "cabinet": { "builtin": "box", "bezel_mm": [28, 28, 50], "depth_mm": 420, "color": "#3a3b3d", "speakers": "below" },
+  "tube": { "visible_mm": [270, 202], "curvature": "cylindrical", "radius_mm": 3000, "corner_radius_mm": 8, "glass_thickness_mm": 9 },
+  "mask": { "type": "aperture", "pitch_mm": 0.55, "phosphor_duty": 0.78 },
+  "phosphors": { "red_xy": [0.630, 0.340], "green_xy": [0.310, 0.595], "blue_xy": [0.155, 0.070],
+                 "white_xy": [0.3127, 0.3290], "persistence": [0.01, 0.03, 0.005] },
+  "gun": { "gamma": 2.4, "beam_sigma": [0.09, 0.19], "beam_sigma_h": [0.18, 0.30],
+           "convergence_r_mm": [0.12, -0.08], "convergence_b_mm": [-0.1, 0.08] },
+  "geometry": { "overscan": [0.02, 0.02], "pincushion": 0.002 },
+  "glass": { "tint": "#6f7472", "halation": 0.06, "corner_falloff": 0.88 },
+  "default_input": "rgb"
+}

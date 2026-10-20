@@ -23,6 +23,7 @@ var menu_layer: CanvasLayer
 var menu_visible := false
 var tv_menu: TvMenu
 var mover: TvMover
+var tv_types := TvTypes.new()
 
 var _trigger_was := false
 var _stats_t := 0.0
@@ -51,9 +52,12 @@ func _ready() -> void:
 	fill.rotation_degrees = Vector3(-45, 30, 0)
 	add_child(fill)
 	add_child(room)
-	# Centre the cabinet's depth on the stand (front face at the origin of Tv).
-	tv.position = Vector3(0, Room.STAND_TOP, -1.6 + CabinetVcrCombo.D * CabinetVcrCombo.MM * 0.5)
 	add_child(tv)
+	tv_types.load_all()
+	tv.apply_type(tv_types.find(settings.get_value("tv", "type", TvTypes.DEFAULT_ID)))
+	# Centre the cabinet's depth on the stand (front face at the origin of Tv).
+	var depth: float = (tv.cabinet.get("bounds") as AABB).size.z
+	tv.position = Vector3(0, Room.STAND_TOP, -1.6 + depth * 0.5)
 	add_child(host)
 	router.host = host
 	add_child(router)
@@ -67,6 +71,12 @@ func _ready() -> void:
 	menu.action.connect(_on_action)
 	host.content_started.connect(func(e): menu.set_status("Playing: %s  (%s)" % [e.title, e.system]))
 	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
+	# The extension creates the core's AudioStreamPlayer3D per start: route it
+	# through the TV's bus so the set's VOLUME applies.
+	host.content_started.connect(func(_e):
+		var p := host.libretro.get_node_or_null("AudioStreamPlayer3D") as AudioStreamPlayer3D
+		if p:
+			p.bus = Tv.AUDIO_BUS)
 	host.content_failed.connect(func(msg): menu.set_status("Could not start: " + msg); set_menu_visible(true))
 
 	var xr := XrSession.try_start()
@@ -100,7 +110,7 @@ func _ready() -> void:
 	mover = TvMover.new(tv, xr_session, settings)
 	add_child(mover)
 	mover.load_placement()
-	tv_menu = TvMenu.new(settings, tv, xr_session, mover)
+	tv_menu = TvMenu.new(settings, tv, xr_session, mover, tv_types)
 	mover.moved.connect(tv.osd.refresh)
 	router.tv_menu_toggled.connect(_toggle_tv_menu)
 	router.osd_button.connect(tv.osd.press)

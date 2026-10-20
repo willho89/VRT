@@ -1,0 +1,13 @@
+{
+  "id": "aperture_27",
+  "name": "27-inch aperture grille TV",
+  "short_name": "APERTURE 27",
+  "order": 10,
+  "description": "Late-90s high-end consumer set: aperture grille (continuous vertical stripes), vertically flat cylindrical tube, silver front.",
+  "cabinet": { "builtin": "box", "bezel_mm": [70, 40, 85], "depth_mm": 520, "color": "#2a2a2c", "front_color": "#9a9a9e", "speakers": "sides" },
+  "tube": { "visible_mm": [540, 405], "curvature": "cylindrical", "radius_mm": 2000, "corner_radius_mm": 12 },
+  "mask": { "type": "aperture", "pitch_mm": 0.9, "phosphor_duty": 0.75 },
+  "phosphors": { "white_xy": [0.2831, 0.2971] },
+  "gun": { "beam_sigma": [0.12, 0.24] },
+  "default_input": "svideo"
+}

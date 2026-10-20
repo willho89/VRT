@@ -28,6 +28,9 @@ var led_mat := StandardMaterial3D.new()
 var screen_origin := Vector3(0, SCREEN_Y * MM, -12.0 * MM)
 ## Inner edge of the bevel; the tube must cover at least this (mm).
 var glass_window := OPENING - Vector2(40.0, 10.0)
+## Cabinet extent (metres; origin at the bottom centre of the front face, the
+## convention every cabinet follows).
+var bounds := AABB(Vector3(-W * 0.5, 0.0, -D) * MM, Vector3(W, H, D) * MM)
 
 
 func _ready() -> void:

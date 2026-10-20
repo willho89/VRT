@@ -1,0 +1,11 @@
+{
+  "id": "vcr_combo_25",
+  "name": "25-inch TV/VCR combo",
+  "short_name": "TV/VCR 25",
+  "order": 0,
+  "description": "Mid-90s consumer combo set: slot mask, spherical tube, composite in. VRT's reference look.",
+  "cabinet": { "builtin": "vcr_combo" },
+  "tube": { "visible_mm": [500, 375], "curvature": "spherical", "radius_mm": 1600, "corner_radius_mm": 18 },
+  "mask": { "type": "slot", "pitch_mm": 1.0, "vpitch_mm": 1.0, "phosphor_duty": 0.70, "slot_duty": 0.78 },
+  "default_input": "composite"
+}

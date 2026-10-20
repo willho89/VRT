@@ -10,18 +10,25 @@ const STYLE_LABELS := ["GREEN", "WHITE"]
 ## How the set labels each input when it switches to it.
 const INPUT_BANNERS := ["RGB", "S-VIDEO", "VIDEO 1", "CH 03"]
 const BAR_STEP := 2
+const DEFAULT_VOLUME := 70
+## Overscan in percent per side. Real 90s sets hid 5-7%; less shows more of
+## the picture (and of the junk some consoles leave at the edges).
+const DEFAULT_OVERSCAN := 3
+const MAX_OVERSCAN := 10
 
 var settings: VrtSettings
 var tv: Tv
 var xr: XrSession  # null in flat desktop mode
 var mover: TvMover
+var types: TvTypes
 
 
-func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover) -> void:
+func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover, ty: TvTypes) -> void:
 	settings = s
 	tv = t
 	xr = x
 	mover = m
+	types = ty
 	_load()
 	tv.osd.pages = _pages()
 
@@ -48,6 +55,8 @@ func _load() -> void:
 	for i in TvControls.ALL.size():
 		p.set_tv_control(i, _level(i))
 	tv.set_no_signal(settings.get_value("tv", "no_signal", Tv.NoSignal.BLUE))
+	tv.set_volume(settings.get_value("tv", "volume", DEFAULT_VOLUME))
+	tv.set_overscan(settings.get_value("tv", "overscan", DEFAULT_OVERSCAN) / 100.0)
 	tv.osd.set_style(settings.get_value("tv", "osd_style", TvOsd.Style.GREEN))
 	if xr:
 		xr.set_eye_width(settings.get_value("xr", "eye_width", xr.default_eye_width()))
@@ -65,7 +74,20 @@ static func _cycle(v: int, dir: int, n: int) -> int:
 func _pages() -> Dictionary:
 	var p := tv.pipeline
 	var main := [
+		{"label": "VOLUME", "level": func(): return settings.get_value("tv", "volume", DEFAULT_VOLUME),
+			"change": func(d):
+				var v := clampi(settings.get_value("tv", "volume", DEFAULT_VOLUME) + d * BAR_STEP, 0, 100)
+				settings.set_value("tv", "volume", v)
+				tv.set_volume(v)},
 		{"label": "PICTURE", "value": func(): return ">", "enter": func(): tv.osd.enter_page("picture", "PICTURE")},
+		# Which set this is (TvTypes; JSON in res://tvs and /sdcard/VRT/tvs).
+		{"label": "TV TYPE", "value": func(): return types.find(tv.type_id).get("short_name", "?"),
+			"change": func(d):
+				if types.types.size() < 2:
+					return
+				var t: Dictionary = types.types[_cycle(types.index_of(tv.type_id), d, types.types.size())]
+				tv.apply_type(t)
+				settings.set_value("tv", "type", t.id)},
 		{"label": "INPUT", "value": func(): return SignalPresets.NAMES[p.input].to_upper(),
 			"change": func(d):
 				p.set_input(_cycle(p.input, d, SignalPresets.NAMES.size()))
@@ -78,6 +100,11 @@ func _pages() -> Dictionary:
 			"change": func(d):
 				p.set_decoder(_cycle(p.decoder, d, SignalPresets.DECODER_NAMES.size()))
 				settings.set_value("crt", "decoder", p.decoder)},
+		{"label": "OVERSCAN", "value": func(): return "%d%%" % settings.get_value("tv", "overscan", DEFAULT_OVERSCAN),
+			"change": func(d):
+				var o := clampi(settings.get_value("tv", "overscan", DEFAULT_OVERSCAN) + d, 0, MAX_OVERSCAN)
+				settings.set_value("tv", "overscan", o)
+				tv.set_overscan(o / 100.0)},
 		{"label": "DETAIL", "value": func(): return DETAIL_LABELS[p.detail_level],
 			"change": func(d):
 				p.set_detail_level(_cycle(p.detail_level, d, DETAIL_LABELS.size()))
