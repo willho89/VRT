@@ -74,7 +74,6 @@ func _load() -> void:
 	p.set_strength_level(settings.get_value("crt", "signal_strength", SignalPresets.DEFAULT_STRENGTH))
 	p.set_decoder(settings.get_value("crt", "decoder", SignalPresets.Decoder.NOTCH))
 	p.set_detail_level(settings.get_value("crt", "detail", CrtPipeline.DEFAULT_DETAIL))
-	p.rolling = settings.get_value("crt", "rolling", false)
 	for i in TvControls.ALL.size():
 		p.set_tv_control(i, _level(i))
 	tv.set_no_signal(settings.get_value("tv", "no_signal", Tv.NoSignal.BLUE))
@@ -174,10 +173,6 @@ func _pages() -> Dictionary:
 			"change": func(_d):
 				GlowAnchor.set_light_enabled(tv.get_tree(), not GlowAnchor.light_enabled)
 				settings.set_value("tv", "ar_light", GlowAnchor.light_enabled)},
-		{"label": "SCAN", "value": func(): return "ROLLING" if p.rolling else "OFF",
-			"change": func(_d):
-				p.rolling = not p.rolling
-				settings.set_value("crt", "rolling", p.rolling)},
 		{"label": "TAPE", "value": func(): return TAPE_LABELS[mini(settings.get_value("tv", "tape", 0), 2)],
 			"change": func(d):
 				settings.set_value("tv", "tape", _cycle(mini(settings.get_value("tv", "tape", 0), 2), d, TAPE_LABELS.size()))

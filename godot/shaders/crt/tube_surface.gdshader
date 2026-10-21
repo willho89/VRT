@@ -74,27 +74,6 @@ uniform float glass_roughness = 0.06;
 uniform float glass_transmission = 0.75;
 uniform float corner_falloff = 0.78;
 
-group_uniforms scan;
-// Rolling scan (after the Blur Busters CRT beam simulator, MIT): with N
-// display refreshes per content frame, each refresh lights the band the beam
-// sweeps through it; the rest shows the phosphor's decayed tail. scan_gain
-// keeps the average brightness. scan_n < 1.5 = off (whole picture each time).
-uniform float scan_n = 1.0;
-uniform float scan_pos = 0.5;       // beam band centre this refresh, 0 top .. 1 bottom
-uniform float scan_tail = 0.25;     // what a band keeps after the beam has passed
-uniform float scan_gain = 1.0;
-
-float rolling_scan(float y) {
-	if (scan_n < 1.5) {
-		return 1.0;
-	}
-	float band = 1.0 / scan_n;
-	// Refreshes since the beam passed y (0 = lit this refresh), wrapping.
-	float age = fract(scan_pos + 0.5 * band - y) * scan_n;
-	float lit = 1.0 - smoothstep(0.9, 1.1, age);
-	return mix(scan_tail, 1.0, lit) * scan_gain;
-}
-
 group_uniforms glass;
 // Glass on the tube (TV menu > GLASS): 0 off, 1 normal. Two parts, both added
 // to what the glass shows: a soft "window" highlight that slides across the
@@ -343,7 +322,6 @@ void fragment() {
 		vec3 phosphor = drive * phosphor_mask(m, fw) * in_pic * inside * falloff;
 		// Scattered glow is not masked: it lives in the glass, in front of the phosphors.
 		vec3 glow = texture(halation_tex, clamp(pic, 0.0, 1.0)).rgb * halation * inside * falloff;
-		EMISSION = max(phosphor_to_rec709 * (phosphor + glow), vec3(0.0)) * exposure * glass_transmission
-				* rolling_scan(pic.y) + glass;
+		EMISSION = max(phosphor_to_rec709 * (phosphor + glow), vec3(0.0)) * exposure * glass_transmission + glass;
 	}
 }
