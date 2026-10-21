@@ -16,7 +16,9 @@ const DEFAULT_VOLUME := 70
 const DEFAULT_OVERSCAN := 3
 ## TAPE: a VHS deck in the chain. AUTO puts the VHS channel's videos on a
 ## good tape and everything else straight to the TV.
-const TAPE_LABELS := ["AUTO", "OFF", "GOOD", "WORN"]
+## (A WORN tape existed briefly; its hiss and wobble were too much - a saved
+## WORN now plays as GOOD.)
+const TAPE_LABELS := ["AUTO", "OFF", "GOOD"]
 const TAPE_CORES := ["ffmpeg"]
 ## GLASS: reflections and highlight on the tube's glass.
 const GLASS_LABELS := ["OFF", "SUBTLE", "NORMAL", "STRONG"]
@@ -176,9 +178,9 @@ func _pages() -> Dictionary:
 			"change": func(_d):
 				p.rolling = not p.rolling
 				settings.set_value("crt", "rolling", p.rolling)},
-		{"label": "TAPE", "value": func(): return TAPE_LABELS[settings.get_value("tv", "tape", 0)],
+		{"label": "TAPE", "value": func(): return TAPE_LABELS[mini(settings.get_value("tv", "tape", 0), 2)],
 			"change": func(d):
-				settings.set_value("tv", "tape", _cycle(settings.get_value("tv", "tape", 0), d, TAPE_LABELS.size()))
+				settings.set_value("tv", "tape", _cycle(mini(settings.get_value("tv", "tape", 0), 2), d, TAPE_LABELS.size()))
 				apply_tape()},
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
@@ -280,10 +282,10 @@ func apply_tape() -> void:
 		0:
 			if host and host.is_running() and host.current.core in TAPE_CORES:
 				wear = 0.0
-		2:
+		1:
+			wear = -1.0  # OFF
+		_:  # GOOD (and a saved WORN)
 			wear = 0.0
-		3:
-			wear = 1.0
 	tv.pipeline.set_tape(wear)
 	tv.set_tape_audio(wear)
 
