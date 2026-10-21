@@ -42,6 +42,10 @@ uniform float filter_width = 1.0;         // filter width in pixels (tent of 2x 
 // resamples the eye buffer again (lens distortion, reprojection): anything
 // left near the eye buffer's Nyquist limit re-aliases there as moire.
 uniform vec2 fade_px = vec2(3.0, 6.0);
+// Scanlines fade separately (period in pixels per *swept* line). They are a
+// colourless, coarser pattern than the RGB mask, so they can stay visible much
+// closer to the pixel limit before beating turns into moire.
+uniform vec2 scan_fade_px = vec2(3.0, 6.0);
 // Extra blur for scanlines as they approach that limit (footprint multiplier).
 uniform float scanline_filter = 2.0;
 
@@ -162,7 +166,7 @@ float beam(vec2 pic, int c, float footprint_lines, float lo) {
 		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
 		// flat) rather than let them beat against the pixel grid.
 		float px_per_line = sweep_lines / max(footprint_lines, 1e-5);
-		sigma = mix(0.55 * sweep_lines, sigma, smoothstep(fade_px.x, fade_px.y, px_per_line));
+		sigma = mix(0.55 * sweep_lines, sigma, smoothstep(scan_fade_px.x, scan_fade_px.y, px_per_line));
 		float fp = footprint_lines * scanline_filter;
 		float var = sigma * sigma + fp * fp / 12.0;
 		float d = y - l;

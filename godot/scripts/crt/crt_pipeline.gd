@@ -34,12 +34,20 @@ var system_core := ""
 ## visible artifacting is what reads as a CRT across a room (user decision
 ## 2026-10-21: "if we're not seeing CRT artifacting, it's just a curved
 ## screen"). Only a half-pixel filter remains, against per-pixel sparkle.
-const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
-const DETAIL_MASK_SCALE := [1.0, 1.0, 1.0, 1.6, 1.6]
-const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 2.0, 1.0, 0.5]
+##
+## Distance (the default since 2026-10-21) splits the two: the RGB mask fades
+## like Strong (its fine coloured stripes are what turn into rainbow moire), at
+## a slightly coarser pitch so it holds to about arm's length, while scanlines
+## stay visible down to ~1.2 px per line - about 3 ft from a 25" set showing
+## 240 lines (~2.3 px per line on Quest 3), with a gentler footprint filter.
+## Fade periods in eye-buffer pixels: [mask], [scanlines].
+const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), Vector2(1.2, 2.5), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
+const DETAIL_SCAN_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), Vector2(1.2, 2.2), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
+const DETAIL_MASK_SCALE := [1.0, 1.0, 1.25, 1.6, 1.6]
+const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 1.0, 1.0, 0.5]
 const DETAIL_FILTER_WIDTH := [1.0, 1.0, 1.0, 1.0, 0.5]
-const DETAIL_NAMES := ["Clean", "Balanced", "Strong", "Exaggerated", "Raw"]
-const DEFAULT_DETAIL := 4  # Raw (2026-10-21); Strong was the 2026-10-19 baseline
+const DETAIL_NAMES := ["Clean", "Strong", "Distance", "Exaggerated", "Raw"]
+const DEFAULT_DETAIL := 2  # Distance (2026-10-21); Strong was the 2026-10-19 baseline
 var detail_level: int = DEFAULT_DETAIL
 
 var _sig_vp := SubViewport.new()
@@ -183,6 +191,7 @@ func set_system(core: String) -> void:
 func set_detail_level(level: int) -> void:
 	detail_level = level
 	surface.set_shader_parameter("fade_px", DETAIL_FADE_PX[level])
+	surface.set_shader_parameter("scan_fade_px", DETAIL_SCAN_FADE_PX[level])
 	surface.set_shader_parameter("mask_scale", DETAIL_MASK_SCALE[level])
 	surface.set_shader_parameter("scanline_filter", DETAIL_SCANLINE_FILTER[level])
 	surface.set_shader_parameter("filter_width", DETAIL_FILTER_WIDTH[level])
