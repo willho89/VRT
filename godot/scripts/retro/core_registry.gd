@@ -29,6 +29,13 @@ const CORES := {
 		"exts": ["pce", "sgx", "cue", "ccd", "chd"],
 		"folders": ["pce", "pc engine", "turbografx-16", "turbografx", "tg16", "pce-cd"],
 	},
+	# PlayStation, software-rendered (light enough for Quest 2). A BIOS is
+	# optional (HLE BIOS built in): /sdcard/VRT/system/pcsx_rearmed/scph5501.bin.
+	"pcsx_rearmed": {
+		"system": "PlayStation",
+		"exts": ["cue", "chd", "pbp", "m3u", "bin", "img", "iso", "exe"],
+		"folders": ["psx", "ps1", "playstation", "playstation 1"],
+	},
 	# Standalone video files ("VHS": anything that isn't a DVD), via RetroArch's
 	# FFmpeg core.
 	"ffmpeg": {

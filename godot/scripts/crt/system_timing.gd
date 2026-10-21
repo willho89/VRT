@@ -42,6 +42,19 @@ static func for_core(core: String, width: int, fields: bool) -> Dictionary:
 			elif width > 300:
 				cpp = 0.5
 			return _t(cpp, 0.5, [0.0])
+		"pcsx_rearmed", "swanstation", "mednafen_psx", "mednafen_psx_hw":
+			# PS1 GPU: 53.69 MHz (15 fsc) divided by 10/8/7/5/4 for 256/320/368/
+			# 512/640 px; ~3413 GPU clocks (227.5 cycles) a line.
+			var div := 10.0
+			if width >= 600:
+				div = 4.0
+			elif width >= 480:
+				div = 5.0
+			elif width >= 350:
+				div = 7.0
+			elif width >= 300:
+				div = 8.0
+			return _t(div / 15.0, 0.5, [0.0, 0.5])
 		"deevee":
 			# BT.601: 13.5 MHz pixels. A field is 262.5 lines of 227.5 cycles.
 			var cpp := FSC_HZ / 13.5e6
