@@ -8,7 +8,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DEEVEE=${DEEVEE_DIR:-$HOME/.claude/projects/DeeVee}
 BUILDBOT=https://buildbot.libretro.com/nightly
 # Quest 2 baseline set (8/16-bit). Quest 3 additions come later.
-CORES=(fceumm snes9x genesis_plus_gx mednafen_pce_fast ffmpeg pcsx_rearmed)
+CORES=(fceumm snes9x genesis_plus_gx mednafen_pce_fast ffmpeg pcsx_rearmed parallel_n64)
 
 fetch() { # platform url-dir suffix
   local dest=$ROOT/cores/$1; mkdir -p "$dest"

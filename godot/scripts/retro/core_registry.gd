@@ -34,13 +34,13 @@ const CORES := {
 	"pcsx_rearmed": {
 		"system": "PlayStation",
 		"exts": ["cue", "chd", "pbp", "m3u", "bin", "img", "iso", "exe"],
-		"folders": ["psx", "ps1", "playstation", "playstation 1"],
+		"folders": ["ps", "psx", "ps1", "playstation", "playstation 1"],
 	},
-	# Nintendo 64, GPU-rendered (the extension's GLES 3 hardware-render path on
-	# Quest, read back into the CRT pipeline). Android builds are named _gles3.
-	"mupen64plus_next": {
+	# Nintendo 64: ParaLLEl N64 with ParaLLEl-RDP, rendering through Vulkan like
+	# VRT itself (RetroHost.MANAGED_OPTIONS). Mupen64Plus-Next's GLES build gave a
+	# black screen at ~20 fps on Quest 3 (GLES context beside Godot's Vulkan).
+	"parallel_n64": {
 		"system": "N64",
-		"android_binary": "mupen64plus_next_gles3",
 		"exts": ["n64", "z64", "v64", "ndd"],
 		"folders": ["n64", "nintendo 64"],
 	},
