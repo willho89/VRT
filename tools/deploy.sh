@@ -14,6 +14,15 @@ if [ "${1:-}" != "--no-export" ]; then
   "$GODOT" --headless --path "$ROOT/godot" --install-android-build-template \
     --export-debug "Meta Quest" "$APK" 2>&1 | grep -E "ERROR|SCRIPT ERROR" || true
 fi
+# Prefer the wireless link (tools/quest_wireless.sh); the export above restarts
+# the adb server, which drops it, so reconnect first. ANDROID_SERIAL then picks
+# it for every adb call below, even with the cable also plugged in.
+if [ -z "${ANDROID_SERIAL:-}" ] && [ -f "$ROOT/builds/quest-addr" ]; then
+  ADDR=$(cat "$ROOT/builds/quest-addr")
+  if "$ADB" connect "$ADDR" | grep -q "connected"; then
+    export ANDROID_SERIAL=$ADDR
+  fi
+fi
 "$ADB" install -r "$APK" | tail -1
 "$ADB" logcat -c
 "$ADB" shell am force-stop $PKG
