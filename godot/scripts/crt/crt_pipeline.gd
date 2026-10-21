@@ -201,7 +201,11 @@ const SCAN_TAIL := 0.25
 func update_scan(new_frames: int, display_hz: float, content_fps: float) -> void:
 	var n := 1
 	if rolling and content_fps > 1.0 and display_hz > 1.0:
-		n = int(round(display_hz / content_fps))
+		# Only whole multiples (120 Hz / 60 fps): at e.g. 80 Hz / 30 fps the bands
+		# can't be lit evenly and the last one goes dark part of the time.
+		var ratio := display_hz / content_fps
+		if absf(ratio - round(ratio)) < 0.05:
+			n = int(round(ratio))
 	if n < 2:
 		surface.set_shader_parameter("scan_n", 1.0)
 		return
