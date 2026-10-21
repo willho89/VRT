@@ -56,6 +56,9 @@ uniform float beam_sigma_bright = 0.42;
 // more lines (480 frame lines in field mode, 480p) has a physically identical
 // spot, so it covers proportionally more raster lines.
 uniform float beam_scale = 1.0;
+// Detail level's beam thinning (< 1: narrower spot, darker gaps). Each line's
+// Gaussian stays normalised, so overall brightness is unchanged.
+uniform float beam_sharp = 1.0;
 // Raster lines between lines of one sweep: 2 in field mode, where each field
 // lights every other line and the other half has decayed. That 2-line period
 // is the structure actually on the tube at any instant, so fade by it.
@@ -162,7 +165,7 @@ float beam(vec2 pic, int c, float footprint_lines, float lo) {
 		}
 		vec3 rgb = raster_line(vec2(pic.x, (l + 0.5) / raster_size.y), lo);
 		float drive = c == 0 ? rgb.r : (c == 1 ? rgb.g : rgb.b);
-		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0))) * beam_scale;
+		float sigma = mix(beam_sigma_dark, beam_sigma_bright, sqrt(clamp(drive, 0.0, 1.0))) * beam_scale * beam_sharp;
 		// As lines approach the resolvable limit, merge them (sigma 0.55 lines is
 		// flat) rather than let them beat against the pixel grid.
 		float px_per_line = sweep_lines / max(footprint_lines, 1e-5);

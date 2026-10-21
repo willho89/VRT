@@ -38,13 +38,16 @@ var system_core := ""
 ## Distance (the default since 2026-10-21) splits the two: the RGB mask fades
 ## like Strong (its fine coloured stripes are what turn into rainbow moire), at
 ## a slightly coarser pitch so it holds to about arm's length, while scanlines
-## stay visible down to ~1.2 px per line - about 3 ft from a 25" set showing
-## 240 lines (~2.3 px per line on Quest 3), with a gentler footprint filter.
+## never fade or merge and the beam is thinned so the gaps stay dark: at ~3 ft
+## (~2 px per 240p line) the full-width spot only modulated ~20%, invisible in
+## the headset; at 0.6x it is ~55%. Exaggerated pushes both further.
 ## Fade periods in eye-buffer pixels: [mask], [scanlines].
-const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), Vector2(1.2, 2.5), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
-const DETAIL_SCAN_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), Vector2(1.2, 2.2), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
+const NO_FADE := Vector2(0.0, 0.001)
+const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), Vector2(1.2, 2.5), Vector2(0.8, 1.6), NO_FADE]
+const DETAIL_SCAN_FADE_PX := [Vector2(3.0, 6.0), Vector2(1.2, 2.5), NO_FADE, NO_FADE, NO_FADE]
 const DETAIL_MASK_SCALE := [1.0, 1.0, 1.25, 1.6, 1.6]
-const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 1.0, 1.0, 0.5]
+const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 0.75, 0.6, 0.5]
+const DETAIL_BEAM_SHARP := [1.0, 1.0, 0.6, 0.5, 1.0]
 const DETAIL_FILTER_WIDTH := [1.0, 1.0, 1.0, 1.0, 0.5]
 const DETAIL_NAMES := ["Clean", "Strong", "Distance", "Exaggerated", "Raw"]
 const DEFAULT_DETAIL := 2  # Distance (2026-10-21); Strong was the 2026-10-19 baseline
@@ -195,6 +198,7 @@ func set_detail_level(level: int) -> void:
 	surface.set_shader_parameter("mask_scale", DETAIL_MASK_SCALE[level])
 	surface.set_shader_parameter("scanline_filter", DETAIL_SCANLINE_FILTER[level])
 	surface.set_shader_parameter("filter_width", DETAIL_FILTER_WIDTH[level])
+	surface.set_shader_parameter("beam_sharp", DETAIL_BEAM_SHARP[level])
 
 
 func set_strength_level(level: int) -> void:
