@@ -36,6 +36,14 @@ const CORES := {
 		"exts": ["cue", "chd", "pbp", "m3u", "bin", "img", "iso", "exe"],
 		"folders": ["psx", "ps1", "playstation", "playstation 1"],
 	},
+	# Nintendo 64, GPU-rendered (the extension's GLES 3 hardware-render path on
+	# Quest, read back into the CRT pipeline). Android builds are named _gles3.
+	"mupen64plus_next": {
+		"system": "N64",
+		"android_binary": "mupen64plus_next_gles3",
+		"exts": ["n64", "z64", "v64", "ndd"],
+		"folders": ["n64", "nintendo 64"],
+	},
 	# Standalone video files ("VHS": anything that isn't a DVD), via RetroArch's
 	# FFmpeg core.
 	"ffmpeg": {
@@ -53,6 +61,14 @@ const CORES := {
 
 
 ## Core for a folder name, or "" if no core claims it.
+## The core's library name on this platform (some differ per platform, e.g.
+## Mupen64Plus-Next is mupen64plus_next_gles3 on Android).
+static func binary(core: String) -> String:
+	if OS.get_name() == "Android":
+		return CORES.get(core, {}).get("android_binary", core)
+	return core
+
+
 static func core_for_folder(folder: String) -> String:
 	var f := folder.to_lower()
 	for core in CORES:

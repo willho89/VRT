@@ -115,7 +115,7 @@ func start(entry: ContentLibrary.Entry) -> void:
 	libretro.call("SetSramPath", save_dir.path_join(entry.title + ".srm"))
 	_apply_managed_options(entry.core)
 	_run_t = 0.0  # restart the start-up grace period (see _process)
-	libretro.call("StartContent", root, entry.core, path)
+	libretro.call("StartContent", root, CoreRegistry.binary(entry.core), path)
 	current = entry
 	_last_serial = -1
 	print("VRT: started ", entry.core, " ", path)

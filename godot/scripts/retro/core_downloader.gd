@@ -36,7 +36,7 @@ func _ready() -> void:
 
 func core_file(core: String) -> String:
 	var p: Array = PLATFORM_PATH.get(OS.get_name(), PLATFORM_PATH.Linux)
-	return core + p[1]
+	return CoreRegistry.binary(core) + p[1]
 
 
 func is_installed(core: String) -> bool:
