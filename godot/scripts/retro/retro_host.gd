@@ -12,6 +12,8 @@ extends Node3D
 signal content_started(entry: ContentLibrary.Entry)
 signal content_failed(message: String)
 signal content_stopped
+## The core stopped by itself (a video reached its end, a game quit).
+signal content_ended(entry: ContentLibrary.Entry)
 
 ## Desktop: cores come from the repo's cores/linux-x86_64 (tools/fetch_cores.sh).
 ## Android: from res://cores_bundle, packed into the APK.
@@ -112,6 +114,7 @@ func start(entry: ContentLibrary.Entry) -> void:
 	DirAccess.make_dir_recursive_absolute(save_dir)
 	libretro.call("SetSramPath", save_dir.path_join(entry.title + ".srm"))
 	_apply_managed_options(entry.core)
+	_run_t = 0.0  # restart the start-up grace period (see _process)
 	libretro.call("StartContent", root, entry.core, path)
 	current = entry
 	_last_serial = -1
@@ -163,6 +166,21 @@ func _apply_managed_options(core: String) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(lines) + "\n")
+
+
+var _run_t := 0.0
+
+
+func _process(delta: float) -> void:
+	if current == null:
+		_run_t = 0.0
+		return
+	_run_t += delta
+	# Grace period: a core is "starting", not yet running, for a moment.
+	if _run_t > 2.0 and not libretro.call("IsRunning"):
+		var e := current
+		stop()
+		content_ended.emit(e)
 
 
 func _on_core_ready(core: String) -> void:

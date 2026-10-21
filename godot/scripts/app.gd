@@ -73,6 +73,10 @@ func _ready() -> void:
 	host.content_started.connect(func(e): menu.set_status("Playing: %s  (%s)" % [e.title, e.system]))
 	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
 	host.content_started.connect(_on_started)
+	host.content_ended.connect(func(e):
+		print("VRT: content ended ", e.title)
+		_open_guide()
+		tv.osd.banner("STOP"))
 	host.core_downloading.connect(func(e):
 		tv.osd.close()
 		tv.osd.banner("DOWNLOADING %s CORE" % e.system.to_upper(), 120.0)

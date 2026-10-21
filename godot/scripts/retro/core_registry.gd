@@ -29,6 +29,13 @@ const CORES := {
 		"exts": ["pce", "sgx", "cue", "ccd", "chd"],
 		"folders": ["pce", "pc engine", "turbografx-16", "turbografx", "tg16", "pce-cd"],
 	},
+	# Standalone video files ("VHS": anything that isn't a DVD), via RetroArch's
+	# FFmpeg core.
+	"ffmpeg": {
+		"system": "VHS",
+		"exts": ["mp4", "mkv", "avi", "mov", "webm", "mpg", "mpeg", "m4v", "ts", "wmv", "flv", "ogv", "3gp"],
+		"folders": ["vhs", "tapes"],
+	},
 	"deevee": {
 		"bundled": true,
 		"system": "DVD",

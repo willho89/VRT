@@ -28,14 +28,17 @@ func content_roots() -> Array:
 		return [
 			{"path": "/sdcard/VRT/roms"},
 			{"path": "/sdcard/VRT/video", "core": "deevee"},
+			{"path": "/sdcard/VRT/vhs", "core": "ffmpeg"},
 			{"path": app.path_join("roms")},
 			{"path": app.path_join("video"), "core": "deevee"},
+			{"path": app.path_join("vhs"), "core": "ffmpeg"},
 		]
 	var home := OS.get_environment("HOME")
 	return [
 		{"path": ProjectSettings.globalize_path("res://../testdata/roms")},
 		{"path": home.path_join("ROMS")},
 		{"path": home.path_join("Videos/DVD"), "core": "deevee"},
+		{"path": home.path_join("Videos/VHS"), "core": "ffmpeg"},
 		{"path": home.path_join(".claude/projects/DeeVee/TestISOs"), "core": "deevee"},
 	]
 
