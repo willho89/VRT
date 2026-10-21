@@ -191,6 +191,29 @@ func set_tape(wear: float) -> void:
 	_vhs_mat.set_shader_parameter("wear", maxf(wear, 0.0))
 
 
+## Rolling scan (TV menu > SCAN). Called every display frame with the core
+## frames that arrived since the last one.
+var rolling := false
+var _subframe := 0
+const SCAN_TAIL := 0.25
+
+
+func update_scan(new_frames: int, display_hz: float, content_fps: float) -> void:
+	var n := 1
+	if rolling and content_fps > 1.0 and display_hz > 1.0:
+		n = int(round(display_hz / content_fps))
+	if n < 2:
+		surface.set_shader_parameter("scan_n", 1.0)
+		return
+	_subframe = 0 if new_frames > 0 else _subframe + 1
+	var k := mini(_subframe, n - 1)
+	surface.set_shader_parameter("scan_n", float(n))
+	surface.set_shader_parameter("scan_pos", (k + 0.5) / n)
+	surface.set_shader_parameter("scan_tail", SCAN_TAIL)
+	# Average over a frame stays 1: one lit refresh, n - 1 at the tail.
+	surface.set_shader_parameter("scan_gain", n / (1.0 + SCAN_TAIL * (n - 1)))
+
+
 func signal_texture() -> Texture2D:
 	return _sig_vp.get_texture()
 

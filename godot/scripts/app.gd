@@ -210,6 +210,9 @@ func _process(delta: float) -> void:
 	var n := host.take_new_frames() if tex else 0
 	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n, delta)
 	router.osd_open = tv.osd.is_open
+	var hz: float = xr_session.xr.get_display_refresh_rate() if xr_session else 120.0
+	var cfps: float = host.libretro.call("GetDeclaredFps") if host.is_running() else 60.0
+	tv.pipeline.update_scan(n if host.is_running() else 1, hz, cfps)
 	tv.set_picture_crop(tv_menu.picture_crop(host))
 	tv.tape_audio_tick(delta, host.libretro.get_node_or_null("AudioStreamPlayer3D") as AudioStreamPlayer3D
 			if host.is_running() else null)
