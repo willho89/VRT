@@ -10,6 +10,6 @@
   "gun": { "beam_sigma": [0.16, 0.30], "beam_sigma_h": [0.30, 0.48],
            "convergence_r_mm": [0.45, -0.3], "convergence_b_mm": [-0.4, 0.3] },
   "geometry": { "overscan": [0.07, 0.06], "pincushion": 0.008 },
-  "glass": { "halation": 0.16, "corner_falloff": 0.70 },
+  "glass": { "scratches": 0.85, "halation": 0.16, "corner_falloff": 0.70 },
   "default_input": "rf"
 }

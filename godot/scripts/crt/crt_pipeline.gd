@@ -147,6 +147,7 @@ func set_profile(p: CrtProfile) -> void:
 	s.set_shader_parameter("glass_roughness", p.glass_roughness)
 	s.set_shader_parameter("corner_falloff", p.corner_falloff)
 	s.set_shader_parameter("halation", p.halation)
+	s.set_shader_parameter("glass_scratches", p.glass_scratches)
 	for m in _mat:
 		m.set_shader_parameter("persistence", p.persistence)
 		m.set_shader_parameter("gamma", p.gamma)

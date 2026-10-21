@@ -71,6 +71,8 @@ enum Curvature { SPHERICAL, CYLINDRICAL, FLAT }
 @export var halation := 0.14
 ## Brightness at the picture corners relative to the centre (beam landing angle).
 @export_range(0.0, 1.0) var corner_falloff := 0.78
+## Wear on the glass: hairline scratches and wiping marks (0 = pristine).
+@export_range(0.0, 1.0) var glass_scratches := 0.5
 
 
 ## 25" mid-90s consumer TV/VCR combo (CabinetVcrCombo), slot mask.
@@ -135,6 +137,7 @@ static func from_dict(d: Dictionary) -> CrtProfile:
 	p.glass_roughness = glass.get("roughness", p.glass_roughness)
 	p.halation = glass.get("halation", p.halation)
 	p.corner_falloff = glass.get("corner_falloff", p.corner_falloff)
+	p.glass_scratches = glass.get("scratches", p.glass_scratches)
 	p.default_input = {"rgb": SignalPresets.Connection.RGB, "svideo": SignalPresets.Connection.SVIDEO,
 			"composite": SignalPresets.Connection.COMPOSITE, "rf": SignalPresets.Connection.RF}.get(
 			d.get("default_input", ""), p.default_input)

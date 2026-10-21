@@ -56,7 +56,7 @@ so a file only needs to state what differs. Lengths are millimetres unless the k
     "convergence_b_mm": [-0.3, 0.25]
   },
   "geometry": { "overscan": [0.06, 0.05], "pincushion": 0.004 },   // overscan is overridden by the OVERSCAN setting
-  "glass": { "tint": "#6b706e", "roughness": 0.06, "halation": 0.14, "corner_falloff": 0.78 },
+  "glass": { "tint": "#6b706e", "roughness": 0.06, "halation": 0.14, "corner_falloff": 0.78, "scratches": 0.5 },  // scratches: wear, 0 = pristine
   "default_input": "composite"         // rgb | svideo | composite | rf (until the user picks one)
 }
 ```

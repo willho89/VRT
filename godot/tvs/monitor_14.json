@@ -12,6 +12,6 @@
   "gun": { "gamma": 2.4, "beam_sigma": [0.09, 0.19], "beam_sigma_h": [0.18, 0.30],
            "convergence_r_mm": [0.12, -0.08], "convergence_b_mm": [-0.1, 0.08] },
   "geometry": { "overscan": [0.02, 0.02], "pincushion": 0.002 },
-  "glass": { "tint": "#6f7472", "halation": 0.06, "corner_falloff": 0.88 },
+  "glass": { "scratches": 0.2, "tint": "#6f7472", "halation": 0.06, "corner_falloff": 0.88 },
   "default_input": "rgb"
 }

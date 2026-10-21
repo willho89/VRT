@@ -83,6 +83,12 @@ group_uniforms glass;
 uniform float glass_reflect = 1.0;
 uniform vec3 glass_light_dir = vec3(-0.45, 0.6, 1.0);  // tube space, +Z out of the screen
 uniform vec3 glass_light_color : source_color = vec3(1.0, 0.96, 0.9);
+// Wear on the glass: hairline scratches and faint wiping arcs, procedural in
+// millimetres on the glass. They only show where they catch light (the window
+// highlight or the edge sheen), and are band-limited like the mask, so from
+// afar they fade instead of sparkling. 0 = pristine.
+uniform float glass_scratches = 0.5;
+const float SCRATCH_CELL_MM = 40.0;
 
 varying vec3 obj_normal;
 
@@ -195,7 +201,60 @@ float rounded_rect(vec2 m) {
 	return clamp(0.5 - dist / max(fwidth(dist), 1e-4), 0.0, 1.0);
 }
 
-vec3 glass_reflection(vec3 v_obj, vec3 n) {
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
+// Coverage of a line of width w_mm at distance d_mm, box-filtered over the
+// pixel footprint fw_mm (a hairline narrower than a pixel just dims).
+float hairline(float d_mm, float w_mm, float fw_mm) {
+	float w = max(w_mm, fw_mm);
+	return (w_mm / w) * (1.0 - smoothstep(0.0, w, d_mm));
+}
+
+// Scratch and wipe-mark intensity at glass position g (mm). 3x3 cells around
+// g, each with up to two straight scratches and one arc segment.
+float glass_wear(vec2 g, float fw_mm) {
+	vec2 cell = floor(g / SCRATCH_CELL_MM);
+	float s = 0.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			vec2 c = cell + vec2(float(i), float(j));
+			for (int k = 0; k < 2; k++) {
+				float h = hash12(c * 1.37 + float(k) * 17.1);
+				if (h > 0.55) {
+					continue;  // most cells are clean
+				}
+				vec2 o = (c + vec2(hash12(c + 3.1 + float(k)), hash12(c + 7.7 + float(k)))) * SCRATCH_CELL_MM;
+				float ang = hash12(c + 11.3 + float(k)) * 3.14159;
+				vec2 dir = vec2(cos(ang), sin(ang));
+				float len = mix(6.0, 45.0, hash12(c + 5.9 + float(k)));
+				vec2 rel = g - o;
+				float t = clamp(dot(rel, dir), -len * 0.5, len * 0.5);
+				float d = length(rel - dir * t);
+				// Fade toward the ends, and vary depth per scratch.
+				float ends = 1.0 - smoothstep(0.35, 0.5, abs(t) / len);
+				s += hairline(d, 0.05, fw_mm) * ends * mix(0.4, 1.0, h / 0.55);
+			}
+			// A wiping arc: part of a large circle (cloth swirl), very faint.
+			float ha = hash12(c * 2.71 + 41.0);
+			if (ha < 0.18) {
+				vec2 ctr = (c + vec2(hash12(c + 19.0), hash12(c + 23.0))) * SCRATCH_CELL_MM;
+				float radius = mix(25.0, 70.0, hash12(c + 29.0));
+				vec2 rel = g - ctr;
+				float a = atan(rel.y, rel.x);
+				float a0 = hash12(c + 31.0) * 6.2832;
+				float on_arc = 1.0 - smoothstep(0.5, 0.9, abs(mod(a - a0 + 3.1416, 6.2832) - 3.1416));
+				s += hairline(abs(length(rel) - radius), 0.08, fw_mm) * on_arc * 0.35;
+			}
+		}
+	}
+	return min(s, 1.0);
+}
+
+vec3 glass_reflection(vec3 v_obj, vec3 n, vec2 glass_mm, float glass_fw) {
 	if (glass_reflect <= 0.0) {
 		return vec3(0.0);
 	}
@@ -208,7 +267,11 @@ vec3 glass_reflection(vec3 v_obj, vec3 n) {
 	// faint lighter band toward the curved edges; brighter where it faces up.
 	float fresnel = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
 	float sheen = fresnel * (0.10 + 0.08 * clamp(r.y, 0.0, 1.0));
-	return glass_light_color * (window + sheen) * glass_reflect;
+	// Scratches scatter light: lit by a wider lobe of the same window, so they
+	// glint around the highlight, plus a little of the edge sheen.
+	float lit = smoothstep(0.75, 0.99, d) * 0.9 + sheen * 2.0;
+	float wear = glass_scratches > 0.0 ? glass_wear(glass_mm, glass_fw) * lit * glass_scratches : 0.0;
+	return glass_light_color * (window + sheen + wear) * glass_reflect;
 }
 
 void fragment() {
@@ -217,7 +280,8 @@ void fragment() {
 	SPECULAR = 0.5 * clamp(glass_reflect, 0.0, 1.0);
 	METALLIC = 0.0;
 	vec3 view_obj = normalize(transpose(mat3(MODEL_MATRIX)) * (INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
-	vec3 glass = glass_reflection(view_obj, normalize(obj_normal));
+	vec2 glass_mm = UV * visible_mm;  // the glass surface itself, not the phosphors behind
+	vec3 glass = glass_reflection(view_obj, normalize(obj_normal), glass_mm, length(fwidth(glass_mm)));
 	EMISSION = glass;
 
 	if (powered) {
