@@ -74,6 +74,16 @@ uniform float glass_roughness = 0.06;
 uniform float glass_transmission = 0.75;
 uniform float corner_falloff = 0.78;
 
+group_uniforms glass;
+// Glass on the tube (TV menu > GLASS): 0 off, 1 normal. Two parts, both added
+// to what the glass shows: a soft "window" highlight that slides across the
+// curved face as you move (the strongest cue that this is a glass bulb) and a
+// sheen toward grazing angles. Real room reflections come on top from the PBR
+// specular and the room's reflection probe (VR).
+uniform float glass_reflect = 1.0;
+uniform vec3 glass_light_dir = vec3(-0.45, 0.6, 1.0);  // tube space, +Z out of the screen
+uniform vec3 glass_light_color : source_color = vec3(1.0, 0.96, 0.9);
+
 varying vec3 obj_normal;
 
 const float SQRT_2PI = 2.50662827463;
@@ -185,11 +195,30 @@ float rounded_rect(vec2 m) {
 	return clamp(0.5 - dist / max(fwidth(dist), 1e-4), 0.0, 1.0);
 }
 
+vec3 glass_reflection(vec3 v_obj, vec3 n) {
+	if (glass_reflect <= 0.0) {
+		return vec3(0.0);
+	}
+	float ndv = clamp(dot(n, v_obj), 0.0, 1.0);
+	vec3 r = reflect(-v_obj, n);
+	float d = dot(r, normalize(glass_light_dir));
+	// A soft-edged window: bright core, wide falloff.
+	float window = smoothstep(0.93, 0.995, d) * 0.55 + smoothstep(0.6, 0.98, d) * 0.06;
+	// Glass reflects more at grazing angles (Schlick, glass F0 ~0.04), seen as a
+	// faint lighter band toward the curved edges; brighter where it faces up.
+	float fresnel = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
+	float sheen = fresnel * (0.10 + 0.08 * clamp(r.y, 0.0, 1.0));
+	return glass_light_color * (window + sheen) * glass_reflect;
+}
+
 void fragment() {
 	ALBEDO = glass_tint * 0.12;   // dark phosphor coat behind tinted glass
 	ROUGHNESS = glass_roughness;
-	SPECULAR = 0.5;
+	SPECULAR = 0.5 * clamp(glass_reflect, 0.0, 1.0);
 	METALLIC = 0.0;
+	vec3 view_obj = normalize(transpose(mat3(MODEL_MATRIX)) * (INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
+	vec3 glass = glass_reflection(view_obj, normalize(obj_normal));
+	EMISSION = glass;
 
 	if (powered) {
 		// Parallax: the phosphor layer sits glass_thickness behind this surface.
@@ -229,6 +258,6 @@ void fragment() {
 		vec3 phosphor = drive * phosphor_mask(m, fw) * in_pic * inside * falloff;
 		// Scattered glow is not masked: it lives in the glass, in front of the phosphors.
 		vec3 glow = texture(halation_tex, clamp(pic, 0.0, 1.0)).rgb * halation * inside * falloff;
-		EMISSION = max(phosphor_to_rec709 * (phosphor + glow), vec3(0.0)) * exposure * glass_transmission;
+		EMISSION = max(phosphor_to_rec709 * (phosphor + glow), vec3(0.0)) * exposure * glass_transmission + glass;
 	}
 }

@@ -18,6 +18,10 @@ var def := {}
 var floor_body := StaticBody3D.new()
 var _content := Node3D.new()
 var _bodies: Array[StaticBody3D] = []
+## What the TV's glass reflects in the VR room: a box-projected probe captured
+## once, shortly after building (so the CRT's light is in it). Hidden with the
+## room in AR.
+var _probe: ReflectionProbe
 
 
 func _ready() -> void:
@@ -40,8 +44,31 @@ func build(d: Dictionary) -> void:
 		var scene := UserDefs.load_gltf(str(d.dir).path_join(d.model))
 		if scene:
 			_add_model(scene, d)
+			_add_probe()
 			return
 	_build_empty()
+	_add_probe()
+
+
+func _add_probe() -> void:
+	if _probe:
+		_probe.queue_free()
+	var box := CabinetModel._mesh_bounds(_content) if _content.get_child_count() > 0 else AABB()
+	if box.size == Vector3.ZERO:
+		return
+	_probe = ReflectionProbe.new()
+	_probe.box_projection = true
+	_probe.interior = true
+	_probe.size = box.size
+	_probe.position = box.get_center()
+	# Capture from about eye height in front of the TV, where reflections are seen.
+	_probe.origin_offset = Vector3(0.0, 1.1 - box.get_center().y, 0.0)
+	_probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	_probe.visible = false
+	add_child(_probe)
+	get_tree().create_timer(1.5).timeout.connect(func():
+		if is_instance_valid(_probe):
+			_probe.visible = true)
 
 
 ## Where the TV goes by default: its base centre and heading (TV front faces

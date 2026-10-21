@@ -1,9 +1,18 @@
+class_name GlowAnchor
 extends Node3D
 ## Instanced by OpenXRFbSceneManager for each real surface from Meta room setup
 ## (walls, floor, furniture, global mesh). Shows the CRT's light on it and gives
 ## the placement ray something to hit.
 
 const GLOW_SHADER := preload("res://shaders/ar_screen_glow.gdshader")
+## TV menu > AR LIGHT: whether the CRT's light is drawn on the real room. The
+## surfaces stay for pointing either way.
+static var light_enabled := true
+
+
+static func set_light_enabled(tree: SceneTree, on: bool) -> void:
+	light_enabled = on
+	tree.call_group(&"ar_glow", &"set_visible", on)
 
 
 func setup_scene(entity: Object) -> void:
@@ -22,4 +31,6 @@ func setup_scene(entity: Object) -> void:
 		var mat := ShaderMaterial.new()
 		mat.shader = GLOW_SHADER
 		mesh_instance.material_override = mat
+		mesh_instance.add_to_group(&"ar_glow")
+		mesh_instance.visible = light_enabled
 		add_child(mesh_instance)

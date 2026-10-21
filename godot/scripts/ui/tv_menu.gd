@@ -14,6 +14,10 @@ const DEFAULT_VOLUME := 70
 ## Overscan in percent per side. Real 90s sets hid 5-7%; less shows more of
 ## the picture (and of the junk some consoles leave at the edges).
 const DEFAULT_OVERSCAN := 3
+## GLASS: reflections and highlight on the tube's glass.
+const GLASS_LABELS := ["OFF", "SUBTLE", "NORMAL", "STRONG"]
+const GLASS_LEVELS := [0.0, 0.5, 1.0, 1.6]
+const DEFAULT_GLASS := 2
 const MAX_OVERSCAN := 10
 
 var settings: VrtSettings
@@ -69,6 +73,7 @@ func _load() -> void:
 	tv.set_no_signal(settings.get_value("tv", "no_signal", Tv.NoSignal.BLUE))
 	tv.set_volume(settings.get_value("tv", "volume", DEFAULT_VOLUME))
 	tv.set_overscan(settings.get_value("tv", "overscan", DEFAULT_OVERSCAN) / 100.0)
+	p.surface.set_shader_parameter("glass_reflect", GLASS_LEVELS[settings.get_value("tv", "glass", DEFAULT_GLASS)])
 	tv.osd.set_style(settings.get_value("tv", "osd_style", TvOsd.Style.GREEN))
 	if xr:
 		xr.set_eye_width(settings.get_value("xr", "eye_width", xr.default_eye_width()))
@@ -80,6 +85,7 @@ func _load() -> void:
 		xr.walk_by_hand = settings.get_value("comfort", "walk_by_hand", false)
 		xr.vignette = settings.get_value("comfort", "vignette", 1)
 		xr.set_height_offset(settings.get_value("comfort", "height_cm", 0) / 100.0)
+		GlowAnchor.light_enabled = settings.get_value("tv", "ar_light", true)
 
 
 func _level(i: int) -> int:
@@ -125,6 +131,11 @@ func _pages() -> Dictionary:
 				var o := clampi(settings.get_value("tv", "overscan", DEFAULT_OVERSCAN) + d, 0, MAX_OVERSCAN)
 				settings.set_value("tv", "overscan", o)
 				tv.set_overscan(o / 100.0)},
+		{"label": "GLASS", "value": func(): return GLASS_LABELS[settings.get_value("tv", "glass", DEFAULT_GLASS)],
+			"change": func(d):
+				var g := _cycle(settings.get_value("tv", "glass", DEFAULT_GLASS), d, GLASS_LABELS.size())
+				settings.set_value("tv", "glass", g)
+				p.surface.set_shader_parameter("glass_reflect", GLASS_LEVELS[g])},
 		{"label": "DETAIL", "value": func(): return DETAIL_LABELS[p.detail_level],
 			"change": func(d):
 				p.set_detail_level(_cycle(p.detail_level, d, DETAIL_LABELS.size()))
@@ -152,6 +163,10 @@ func _pages() -> Dictionary:
 			"change": func(d):
 				settings.set_value("tv", "widescreen", _cycle(settings.get_value("tv", "widescreen", DEFAULT_WIDE), d, WIDESCREEN_LABELS.size()))
 				apply_dvd_display()},
+		{"label": "AR LIGHT", "value": func(): return "ON" if GlowAnchor.light_enabled else "OFF",
+			"change": func(_d):
+				GlowAnchor.set_light_enabled(tv.get_tree(), not GlowAnchor.light_enabled)
+				settings.set_value("tv", "ar_light", GlowAnchor.light_enabled)},
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
 				tv.set_no_signal(_cycle(tv.no_signal, d, NO_SIGNAL_LABELS.size()))
