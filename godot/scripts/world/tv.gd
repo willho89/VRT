@@ -43,6 +43,15 @@ var _hiss := AudioStreamPlayer3D.new()
 var _hiss_play: AudioStreamGeneratorPlayback
 var _hiss_lp := 0.0
 const HISS_DB := -26.0
+## VCR audio (TAPE): the deck's band-limited sound on the TV bus, tape hiss,
+## and wow & flutter as real speed variation of the core's sound.
+var tape_wear := -1.0
+var _tape_hiss := AudioStreamPlayer3D.new()
+var _tape_play: AudioStreamGeneratorPlayback
+var _tape_prev := 0.0
+var _tape_t := 0.0
+var _tape_lp := AudioEffectLowPassFilter.new()
+var _tape_hp := AudioEffectHighPassFilter.new()
 
 
 func _ready() -> void:
@@ -53,6 +62,17 @@ func _ready() -> void:
 		AudioServer.set_bus_name(AudioServer.bus_count - 1, AUDIO_BUS)
 		AudioServer.set_bus_send(AudioServer.bus_count - 1, &"Master")
 	_hiss.bus = AUDIO_BUS
+	var tbus := AudioServer.get_bus_index(AUDIO_BUS)
+	_tape_hp.cutoff_hz = 90.0
+	AudioServer.add_bus_effect(tbus, _tape_lp)
+	AudioServer.add_bus_effect(tbus, _tape_hp)
+	_set_tape_filters(false)
+	var tgen := AudioStreamGenerator.new()
+	tgen.mix_rate = 22050.0
+	tgen.buffer_length = 0.15
+	_tape_hiss.stream = tgen
+	_tape_hiss.bus = AUDIO_BUS
+	add_child(_tape_hiss)
 	pipeline.set_osd(osd)
 	_ns_vp.size = NO_SIGNAL_SIZE
 	_ns_vp.disable_3d = true
@@ -169,6 +189,48 @@ func show_frame(tex: Texture2D, image: Image, field: int, new_frames: int, delta
 	pipeline.push(_ns_vp.get_texture(), 0, n, true)
 	_feed_hiss()
 	_fill_cells(Color(0.0, 0.006, 0.47) if no_signal == NoSignal.BLUE else Color(0.12, 0.12, 0.12))
+
+
+## Put the set's sound through a VCR (wear 0..1), or straight (-1).
+func set_tape_audio(wear: float) -> void:
+	tape_wear = wear
+	_set_tape_filters(wear >= 0.0)
+	_tape_lp.cutoff_hz = lerpf(10000.0, 7000.0, maxf(wear, 0.0))
+	_tape_hiss.volume_db = lerpf(-38.0, -30.0, maxf(wear, 0.0))
+	if wear < 0.0 and _tape_hiss.playing:
+		_tape_hiss.stop()
+
+
+func _set_tape_filters(on: bool) -> void:
+	var bus := AudioServer.get_bus_index(AUDIO_BUS)
+	for i in AudioServer.get_bus_effect_count(bus):
+		var e := AudioServer.get_bus_effect(bus, i)
+		if e == _tape_lp or e == _tape_hp:
+			AudioServer.set_bus_effect_enabled(bus, i, on)
+
+
+## Each frame while content plays: tape hiss, and wow (~0.5 Hz drift) and
+## flutter (~7 Hz) as playback-speed variation of the core's player.
+func tape_audio_tick(delta: float, core_player: AudioStreamPlayer3D) -> void:
+	if tape_wear < 0.0:
+		if core_player and core_player.pitch_scale != 1.0:
+			core_player.pitch_scale = 1.0
+		return
+	_tape_t += delta
+	if core_player:
+		var w := 1.0 + tape_wear * 1.5
+		core_player.pitch_scale = 1.0 + w * (0.0025 * sin(TAU * 0.47 * _tape_t)
+				+ 0.0007 * sin(TAU * 6.8 * _tape_t) + 0.0004 * sin(TAU * 11.3 * _tape_t))
+	if not _tape_hiss.playing:
+		_tape_hiss.play()
+		_tape_play = _tape_hiss.get_stream_playback()
+	_tape_hiss.global_transform = speaker_transform()
+	# High-passed white noise (first difference): bright tape hiss.
+	for i in _tape_play.get_frames_available():
+		var x := randf() * 2.0 - 1.0
+		var h := (x - _tape_prev) * 0.5
+		_tape_prev = x
+		_tape_play.push_frame(Vector2(h, h))
 
 
 func _feed_hiss() -> void:

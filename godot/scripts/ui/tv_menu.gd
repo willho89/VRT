@@ -280,6 +280,7 @@ func apply_tape() -> void:
 		3:
 			wear = 1.0
 	tv.pipeline.set_tape(wear)
+	tv.set_tape_audio(wear)
 
 
 func _tube_is_wide() -> bool:

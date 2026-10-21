@@ -74,6 +74,7 @@ func _ready() -> void:
 	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
 	host.content_started.connect(_on_started)
 	host.content_started.connect(func(_e): tv_menu.apply_tape())
+	host.content_stopped.connect(func(): tv_menu.apply_tape())  # AUTO: tape out with the cassette
 	host.content_ended.connect(func(e):
 		print("VRT: content ended ", e.title)
 		_open_guide()
@@ -210,6 +211,8 @@ func _process(delta: float) -> void:
 	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n, delta)
 	router.osd_open = tv.osd.is_open
 	tv.set_picture_crop(tv_menu.picture_crop(host))
+	tv.tape_audio_tick(delta, host.libretro.get_node_or_null("AudioStreamPlayer3D") as AudioStreamPlayer3D
+			if host.is_running() else null)
 	# The core's sound (an AudioStreamPlayer3D under the Libretro node) plays
 	# from the set, so it follows the TV when it is moved.
 	host.libretro.global_transform = tv.speaker_transform()
