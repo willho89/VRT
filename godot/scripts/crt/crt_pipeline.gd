@@ -14,6 +14,7 @@ const SIGNAL_SHADER := preload("res://shaders/crt/signal_ntsc.gdshader")
 const HALATION_SHADER := preload("res://shaders/crt/halation.gdshader")
 const HALATION_DOWNSCALE := 4
 const LOWPASS_SHADER := preload("res://shaders/crt/raster_lowpass.gdshader")
+const VHS_SHADER := preload("res://shaders/crt/vhs.gdshader")
 const SURFACE_SHADER := preload("res://shaders/crt/tube_surface.gdshader")
 
 var profile: CrtProfile
@@ -60,6 +61,12 @@ var _sig_dirty := true
 var _timing := {}
 var _timing_key := ""
 var _phase_index := 0
+## Tape stage (vhs.gdshader) in front of the signal stage: -1 = no tape,
+## else the tape's wear (0 good .. 1 worn).
+var tape_wear := -1.0
+var _vhs_vp := SubViewport.new()
+var _vhs_mat := ShaderMaterial.new()
+var _vhs_rect := ColorRect.new()
 var _lo_vp := SubViewport.new()
 var _lo_mat := ShaderMaterial.new()
 var _lo_rect := ColorRect.new()
@@ -79,6 +86,13 @@ var _size := Vector2i.ZERO
 
 func _init(p: CrtProfile) -> void:
 	surface.shader = SURFACE_SHADER
+	_vhs_vp.disable_3d = true
+	_vhs_vp.transparent_bg = false
+	_vhs_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_vhs_mat.shader = VHS_SHADER
+	_vhs_rect.material = _vhs_mat
+	_vhs_vp.add_child(_vhs_rect)
+	add_child(_vhs_vp)  # before the signal viewport: renders first
 	_sig_vp.disable_3d = true
 	_sig_vp.transparent_bg = false
 	_sig_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -171,6 +185,12 @@ func set_crop_x(c: float) -> void:
 		m.set_shader_parameter("crop_x", c)
 
 
+## Put the picture through a VHS tape (wear 0..1), or take it off (-1).
+func set_tape(wear: float) -> void:
+	tape_wear = wear
+	_vhs_mat.set_shader_parameter("wear", maxf(wear, 0.0))
+
+
 func signal_texture() -> Texture2D:
 	return _sig_vp.get_texture()
 
@@ -256,9 +276,19 @@ func push(tex: Texture2D, field: int, new_frames: int, internal := false) -> voi
 		_lo_rect.size = Vector2(size)
 		_lo_mat.set_shader_parameter("width", float(size.x))
 
-	# Signal stage (skipped entirely for RGB or strength Off).
+	# Tape stage (a VCR in the chain), then the signal stage (skipped entirely
+	# for RGB or strength Off).
 	var raster_src := tex
 	_frame_count += new_frames
+	if tape_wear >= 0.0 and not internal:
+		if _vhs_vp.size != src:
+			_vhs_vp.size = src
+			_vhs_rect.size = Vector2(src)
+		_vhs_mat.set_shader_parameter("source_texture", tex)
+		_vhs_mat.set_shader_parameter("source_size", Vector2(src))
+		_vhs_mat.set_shader_parameter("frame_count", float(_frame_count))
+		_vhs_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		raster_src = _vhs_vp.get_texture()
 	_phase_index += new_frames
 	if use_signal:
 		var sig_size := Vector2i(width, src.y)
@@ -270,7 +300,7 @@ func push(tex: Texture2D, field: int, new_frames: int, internal := false) -> voi
 			_sig_mat.set_shader_parameter("line_step", _timing.line_step)
 		var steps: Array = _timing.frame_steps
 		_sig_mat.set_shader_parameter("frame_phase", steps[_phase_index % steps.size()])
-		_sig_mat.set_shader_parameter("source_texture", tex)
+		_sig_mat.set_shader_parameter("source_texture", raster_src)
 		_sig_mat.set_shader_parameter("source_size", Vector2(src))
 		_sig_mat.set_shader_parameter("out_width", float(width))
 		_sig_mat.set_shader_parameter("frame_count", float(_frame_count))

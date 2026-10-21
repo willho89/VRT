@@ -14,6 +14,10 @@ const DEFAULT_VOLUME := 70
 ## Overscan in percent per side. Real 90s sets hid 5-7%; less shows more of
 ## the picture (and of the junk some consoles leave at the edges).
 const DEFAULT_OVERSCAN := 3
+## TAPE: a VHS deck in the chain. AUTO puts the VHS channel's videos on a
+## good tape and everything else straight to the TV.
+const TAPE_LABELS := ["AUTO", "OFF", "GOOD", "WORN"]
+const TAPE_CORES := ["ffmpeg"]
 ## GLASS: reflections and highlight on the tube's glass.
 const GLASS_LABELS := ["OFF", "SUBTLE", "NORMAL", "STRONG"]
 const GLASS_LEVELS := [0.0, 0.5, 1.0, 1.6]
@@ -167,6 +171,10 @@ func _pages() -> Dictionary:
 			"change": func(_d):
 				GlowAnchor.set_light_enabled(tv.get_tree(), not GlowAnchor.light_enabled)
 				settings.set_value("tv", "ar_light", GlowAnchor.light_enabled)},
+		{"label": "TAPE", "value": func(): return TAPE_LABELS[settings.get_value("tv", "tape", 0)],
+			"change": func(d):
+				settings.set_value("tv", "tape", _cycle(settings.get_value("tv", "tape", 0), d, TAPE_LABELS.size()))
+				apply_tape()},
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
 				tv.set_no_signal(_cycle(tv.no_signal, d, NO_SIGNAL_LABELS.size()))
@@ -257,6 +265,21 @@ func _pages() -> Dictionary:
 			{"label": "RETURN", "enter": func(): tv.osd.press(TvOsd.Key.BACK)},
 		]
 	return {"main": main, "picture": picture, "placement": place, "comfort": comfort}
+
+
+## Apply TAPE for what is playing now (call on content start too).
+func apply_tape() -> void:
+	var mode: int = settings.get_value("tv", "tape", 0)
+	var wear := -1.0
+	match mode:
+		0:
+			if host and host.is_running() and host.current.core in TAPE_CORES:
+				wear = 0.0
+		2:
+			wear = 0.0
+		3:
+			wear = 1.0
+	tv.pipeline.set_tape(wear)
 
 
 func _tube_is_wide() -> bool:

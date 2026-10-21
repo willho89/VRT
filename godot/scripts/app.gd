@@ -73,6 +73,7 @@ func _ready() -> void:
 	host.content_started.connect(func(e): menu.set_status("Playing: %s  (%s)" % [e.title, e.system]))
 	host.content_started.connect(func(e): tv.pipeline.set_system(e.core))
 	host.content_started.connect(_on_started)
+	host.content_started.connect(func(_e): tv_menu.apply_tape())
 	host.content_ended.connect(func(e):
 		print("VRT: content ended ", e.title)
 		_open_guide()
