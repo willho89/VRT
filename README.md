@@ -36,7 +36,8 @@ placed in your real room with passthrough (Quest 3), and it lights up its surrou
 ## Content on the headset
 VRT ships with no games or videos. Use your own:
 - `/sdcard/VRT/roms/<System>/...`, e.g. `roms/NES/`, `roms/SNES/`, `roms/Genesis/`, `roms/Master System/`,
-  `roms/PC Engine/` (zipped ROMs work)
+  `roms/PC Engine/`, `roms/PlayStation/` (zipped ROMs work; PS1 discs as .chd/.cue/.pbp)
+- `/sdcard/VRT/vhs/` for ordinary video files (mp4, mkv, avi…), played on the **VHS** channel
 - `/sdcard/VRT/video/` for DVD images (`.iso`, `.chd`) or `VIDEO_TS` folders
 - `/sdcard/VRT/system/<core>/` for files a core asks for (BIOS images). Optional: DeeVee plays
   CSS-encrypted DVD images only if you put `libdvdcss.so.2` in `/sdcard/VRT/system/deevee/`.
@@ -59,8 +60,9 @@ VRT ships with no games or videos. Use your own:
 
 ## Cores
 VRT bundles only [DeeVee](https://github.com/willho89/DeeVee) (DVD-Video, GPL-2.0+, built without
-CSS decryption). FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Sega 8/16-bit) and Mednafen PCE Fast
-(PC Engine) are downloaded on first use from the libretro buildbot. Each keeps its own license, and
+CSS decryption). FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Sega 8/16-bit), Mednafen PCE Fast
+(PC Engine), PCSX ReARMed (PlayStation) and FFmpeg (video files) are downloaded on first use from the
+libretro buildbot. Each keeps its own license, and
 some (Snes9x, Genesis Plus GX) are non-commercial.
 
 ## Building
