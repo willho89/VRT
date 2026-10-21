@@ -36,14 +36,6 @@ const CORES := {
 		"exts": ["cue", "chd", "pbp", "m3u", "bin", "img", "iso", "exe"],
 		"folders": ["ps", "psx", "ps1", "playstation", "playstation 1"],
 	},
-	# Nintendo 64: ParaLLEl N64 with ParaLLEl-RDP, rendering through Vulkan like
-	# VRT itself (RetroHost.MANAGED_OPTIONS). Mupen64Plus-Next's GLES build gave a
-	# black screen at ~20 fps on Quest 3 (GLES context beside Godot's Vulkan).
-	"parallel_n64": {
-		"system": "N64",
-		"exts": ["n64", "z64", "v64", "ndd"],
-		"folders": ["n64", "nintendo 64"],
-	},
 	# Standalone video files ("VHS": anything that isn't a DVD), via RetroArch's
 	# FFmpeg core.
 	"ffmpeg": {
@@ -62,7 +54,7 @@ const CORES := {
 
 ## Core for a folder name, or "" if no core claims it.
 ## The core's library name on this platform (some differ per platform, e.g.
-## Mupen64Plus-Next is mupen64plus_next_gles3 on Android).
+## a core whose Android build has a suffix: "android_binary" in CORES).
 static func binary(core: String) -> String:
 	if OS.get_name() == "Android":
 		return CORES.get(core, {}).get("android_binary", core)

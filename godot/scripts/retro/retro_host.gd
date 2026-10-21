@@ -128,10 +128,6 @@ func start(entry: ContentLibrary.Entry) -> void:
 const MANAGED_OPTIONS := {
 	# VRT draws interlace on the tube itself; never deinterlace in the core.
 	"deevee": {"deevee_deinterlace": "crt"},
-	# Vulkan RDP (same API as VRT) and the ParaLLEl RSP JIT: "auto" fell back to
-	# the cxd4 interpreter on Quest (~15 fps in GoldenEye).
-	"parallel_n64": {"parallel-n64-gfxplugin": "parallel", "parallel-n64-rspplugin": "parallel",
-		"parallel-n64-parallel-rdp-upscaling": "1x"},
 }
 
 
