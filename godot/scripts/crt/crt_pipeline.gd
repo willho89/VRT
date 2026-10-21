@@ -124,8 +124,7 @@ func _init(p: CrtProfile) -> void:
 
 
 func set_profile(p: CrtProfile) -> void:
-	profile = p
-	set_input(p.default_input)
+	profile = p  # the input is the user's (TvMenu); a TV type only suggests a default
 	var s := surface
 	s.set_shader_parameter("visible_mm", p.visible_size_mm)
 	s.set_shader_parameter("corner_radius_mm", p.corner_radius_mm)
@@ -148,10 +147,10 @@ func set_profile(p: CrtProfile) -> void:
 	s.set_shader_parameter("corner_falloff", p.corner_falloff)
 	s.set_shader_parameter("halation", p.halation)
 	s.set_shader_parameter("glass_scratches", p.glass_scratches)
+	_apply_beam_h()
 	for m in _mat:
 		m.set_shader_parameter("persistence", p.persistence)
 		m.set_shader_parameter("gamma", p.gamma)
-		m.set_shader_parameter("beam_sigma_h", p.beam_sigma_h)
 
 
 ## A TvControls entry at an OSD level (0..100, 50 neutral).
@@ -179,6 +178,24 @@ func signal_texture() -> Texture2D:
 func set_input(i: int) -> void:
 	input = i
 	_sig_dirty = true
+	_apply_beam_h()
+
+
+## The horizontal spot, scaled by input: RGB arrives at full bandwidth and
+## looks crisp (pixels with scanlines); composite and RF keep the soft spot,
+## standing in for the bandwidth they lose on the way (with the signal stage).
+const INPUT_SHARPNESS := {
+	SignalPresets.Connection.RGB: 0.45, SignalPresets.Connection.SVIDEO: 0.7,
+	SignalPresets.Connection.COMPOSITE: 1.0, SignalPresets.Connection.RF: 1.0,
+}
+
+
+func _apply_beam_h() -> void:
+	if profile == null:
+		return
+	var k: float = INPUT_SHARPNESS.get(input, 1.0)
+	for m in _mat:
+		m.set_shader_parameter("beam_sigma_h", profile.beam_sigma_h * k)
 
 
 func set_decoder(d: int) -> void:
