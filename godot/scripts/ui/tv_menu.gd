@@ -4,7 +4,7 @@ extends RefCounted
 ## set and saves it. Everything about how the picture looks lives here; the
 ## floating panel is for content and session actions only.
 
-const DETAIL_LABELS := ["CLEAN", "BALANCED", "STRONG", "EXAGGERATED"]
+const DETAIL_LABELS := ["CLEAN", "BALANCED", "STRONG", "EXAGGERATED", "RAW"]
 const NO_SIGNAL_LABELS := ["BLUE", "SNOW"]
 const STYLE_LABELS := ["GREEN", "WHITE"]
 ## How the set labels each input when it switches to it.

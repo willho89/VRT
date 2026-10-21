@@ -28,11 +28,18 @@ var system_core := ""
 ## Exaggerated goes past what the headset can resolve cleanly: a coarser mask
 ## and scanlines kept down to ~1 px, trading some shimmer for a CRT look that
 ## still shows at couch distance.
-const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5), Vector2(0.8, 1.6)]
-const DETAIL_MASK_SCALE := [1.0, 1.0, 1.0, 1.6]
-const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 2.0, 1.0]
-const DETAIL_NAMES := ["Clean", "Balanced", "Strong", "Exaggerated"]
-const DEFAULT_DETAIL := 2  # Strong: user-approved baseline (2026-10-19)
+## Raw drops the anti-moire fading altogether: scanlines and mask keep full
+## contrast at any distance and the picture is never low-passed, so they
+## shimmer and beat against the headset's pixels when finer than them. That
+## visible artifacting is what reads as a CRT across a room (user decision
+## 2026-10-21: "if we're not seeing CRT artifacting, it's just a curved
+## screen"). Only a half-pixel filter remains, against per-pixel sparkle.
+const DETAIL_FADE_PX := [Vector2(3.0, 6.0), Vector2(2.0, 4.0), Vector2(1.2, 2.5), Vector2(0.8, 1.6), Vector2(0.0, 0.001)]
+const DETAIL_MASK_SCALE := [1.0, 1.0, 1.0, 1.6, 1.6]
+const DETAIL_SCANLINE_FILTER := [2.0, 2.0, 2.0, 1.0, 0.5]
+const DETAIL_FILTER_WIDTH := [1.0, 1.0, 1.0, 1.0, 0.5]
+const DETAIL_NAMES := ["Clean", "Balanced", "Strong", "Exaggerated", "Raw"]
+const DEFAULT_DETAIL := 4  # Raw (2026-10-21); Strong was the 2026-10-19 baseline
 var detail_level: int = DEFAULT_DETAIL
 
 var _sig_vp := SubViewport.new()
@@ -178,6 +185,7 @@ func set_detail_level(level: int) -> void:
 	surface.set_shader_parameter("fade_px", DETAIL_FADE_PX[level])
 	surface.set_shader_parameter("mask_scale", DETAIL_MASK_SCALE[level])
 	surface.set_shader_parameter("scanline_filter", DETAIL_SCANLINE_FILTER[level])
+	surface.set_shader_parameter("filter_width", DETAIL_FILTER_WIDTH[level])
 
 
 func set_strength_level(level: int) -> void:
