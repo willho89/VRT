@@ -204,6 +204,22 @@ func screen_to_picture(uv: Vector2) -> Vector2:
 	return c * 0.5 + Vector2(0.5, 0.5)
 
 
+## Horizontal zoom applied to the picture (not the OSD): see CrtPipeline.set_crop_x.
+var picture_crop := 1.0
+
+
+func set_picture_crop(c: float) -> void:
+	if c != picture_crop:
+		picture_crop = c
+		pipeline.set_crop_x(c)
+
+
+## Screen UV to source-frame UV for a core's pointer (through the zoom too).
+func screen_to_source(uv: Vector2) -> Vector2:
+	var p := screen_to_picture(uv)
+	return Vector2(0.5 + (p.x - 0.5) * picture_crop, p.y)
+
+
 func screen_to_osd(uv: Vector2) -> Vector2:
 	return screen_to_picture(uv) * Vector2(TvOsd.SIZE)
 

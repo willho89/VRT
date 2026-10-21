@@ -204,6 +204,7 @@ func _process(delta: float) -> void:
 	var n := host.take_new_frames() if tex else 0
 	tv.show_frame(tex, host.libretro.call("GetVideoImage") if tex else null, host.video_field(), n, delta)
 	router.osd_open = tv.osd.is_open
+	tv.set_picture_crop(tv_menu.picture_crop(host))
 	# The core's sound (an AudioStreamPlayer3D under the Libretro node) plays
 	# from the set, so it follows the TV when it is moved.
 	host.libretro.global_transform = tv.speaker_transform()
@@ -258,7 +259,7 @@ func _handle_ray() -> bool:
 	if tv.osd.guide_open:
 		tv.osd.point(tv.screen_to_osd(uv), pressed_edge)
 	elif host.is_running() and host.current.core in POINTER_CORES:
-		host.set_pointer(0, tv.screen_to_picture(uv), trigger)
+		host.set_pointer(0, tv.screen_to_source(uv), trigger)
 	return false
 
 

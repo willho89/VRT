@@ -60,6 +60,7 @@ var _env_depth: Node3D
 var _base_width := 0.0  # runtime-recommended eye width at multiplier 1
 var _turn_held := false
 var _vignette_mesh := MeshInstance3D.new()
+var _controller_models: Array[Node3D] = []  # hidden in AR: the real ones are visible
 var _vignette_mat := ShaderMaterial.new()
 var _vignette_now := 0.0
 var _moving := false
@@ -167,6 +168,7 @@ func _add_controller_model(tracker: StringName, model_type: int) -> void:
 	grip.tracker = tracker
 	grip.pose = &"grip"
 	add_child(grip)
+	_controller_models.append(grip)
 	var box := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.03, 0.03, 0.08)
@@ -266,6 +268,8 @@ func set_passthrough(enable: bool, env: Environment) -> void:
 		return
 	passthrough = enable
 	position.y = 0.0 if enable else height_offset
+	for g in _controller_models:
+		g.visible = not enable  # passthrough shows the real controllers
 	ray.collision_mask = RAY_MASK_AR if enable else RAY_MASK_VR
 	xr.environment_blend_mode = (XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND if enable
 			else XRInterface.XR_ENV_BLEND_MODE_OPAQUE)

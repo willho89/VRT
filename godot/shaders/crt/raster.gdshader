@@ -40,6 +40,9 @@ uniform float sharpness = 0.0;    // peaking gain, 0..1
 // The set's OSD (scripts/ui/tv_osd.gd), inserted after the picture controls.
 uniform sampler2D osd_tex : filter_nearest, repeat_disable;
 uniform bool osd_on = false;
+// Horizontal zoom of the picture source (not the OSD): 0.75 shows the middle
+// 4:3 of anamorphic 16:9 video full screen (TV "zoom"); 1 = the whole frame.
+uniform float crop_x = 1.0;
 
 const mat3 RGB_TO_YIQ = mat3(
 	vec3(0.2989, 0.5959, 0.2115),
@@ -71,9 +74,10 @@ vec3 apply_controls(vec3 rgb) {
 vec3 sweep(vec2 uv) {
 	float texel = 1.0 / source_size.x;
 	float k = source_size.x / 320.0;
+	vec2 suv = vec2(0.5 + (uv.x - 0.5) * crop_x, uv.y);
 	vec3 v[9];
 	for (int i = 0; i < 9; i++) {
-		v[i] = texture(source_tex, uv + vec2(float(i - 4) * texel, 0.0)).rgb;
+		v[i] = texture(source_tex, suv + vec2(float(i - 4) * texel * crop_x, 0.0)).rgb;
 	}
 	vec3 sum = vec3(0.0);
 	for (int i = -3; i <= 3; i++) {

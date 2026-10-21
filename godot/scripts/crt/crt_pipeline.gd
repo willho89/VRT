@@ -147,6 +147,12 @@ func set_osd(osd: TvOsd) -> void:
 		m.set_shader_parameter("osd_tex", osd.texture())
 
 
+## Show only the middle `c` of the picture's width, stretched across the tube.
+func set_crop_x(c: float) -> void:
+	for m in _mat:
+		m.set_shader_parameter("crop_x", c)
+
+
 func signal_texture() -> Texture2D:
 	return _sig_vp.get_texture()
 

@@ -125,7 +125,7 @@ func draw(ci: CanvasItem) -> void:
 	var items := _items()
 	# Header bar: channel on the left, position on the right.
 	ci.draw_rect(Rect2(0, VIDEO_BOTTOM, 320, 240 - VIDEO_BOTTOM), BAR)
-	var head := "< %02d %s >" % [ch + 2, _channel_name()]
+	var head := "< %02d %s >" % [ch + 1, _channel_name()]
 	_text(ci, Vector2(LIST_X + 2, HEADER.position.y + 3), head.substr(0, 22), HEAD_INK, Vector2i(2, 2))
 	var pos := "%d/%d" % [mini(sel + 1, items.size()), items.size()]
 	_text(ci, Vector2(LIST_X + LIST_W - OsdFont.width(pos, 1) - 2, HEADER.position.y + 3), pos, INK, NARROW)

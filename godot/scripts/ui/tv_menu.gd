@@ -24,9 +24,15 @@ var types: TvTypes
 var rooms: Array[Dictionary] = []
 var select_room: Callable  # app: switch VR rooms
 var host: RetroHost
-## WIDESCREEN: how 16:9 DVDs fit a 4:3 tube, like a DVD player's TV setup.
-const WIDESCREEN_LABELS := ["LETTERBOX", "PAN&SCAN"]
-const WIDESCREEN_OPTION := ["4:3_letterbox", "4:3_panscan"]
+## WIDE: how 16:9 DVDs fit a 4:3 tube. LETTERBOX and PAN&SCAN are the DVD
+## player's own modes (a disc may only permit one). ZOOM and STRETCH are the
+## TV's: the player sends anamorphic 16:9 and the set either shows its middle
+## 4:3 full screen (correct shapes, sides cut) or the whole frame squeezed.
+enum Wide { LETTERBOX, PAN_SCAN, ZOOM, STRETCH }
+const WIDESCREEN_LABELS := ["LETTERBOX", "PAN&SCAN", "ZOOM", "STRETCH"]
+const WIDESCREEN_OPTION := ["4:3_letterbox", "4:3_panscan", "16:9", "16:9"]
+## Full screen with true shapes, as most people watched 16:9 discs on 4:3 sets.
+const DEFAULT_WIDE := Wide.ZOOM
 
 
 func _init(s: VrtSettings, t: Tv, x: XrSession, m: TvMover, ty: TvTypes) -> void:
@@ -142,9 +148,9 @@ func _pages() -> Dictionary:
 				xr.set_preferred_hz(hz)
 				settings.set_value("xr", "refresh_hz", hz)})
 	main.append_array([
-		{"label": "WIDE", "value": func(): return "16:9 TV" if _tube_is_wide() else WIDESCREEN_LABELS[settings.get_value("tv", "widescreen", 0)],
+		{"label": "WIDE", "value": func(): return "16:9 TV" if _tube_is_wide() else WIDESCREEN_LABELS[settings.get_value("tv", "widescreen", DEFAULT_WIDE)],
 			"change": func(d):
-				settings.set_value("tv", "widescreen", _cycle(settings.get_value("tv", "widescreen", 0), d, WIDESCREEN_LABELS.size()))
+				settings.set_value("tv", "widescreen", _cycle(settings.get_value("tv", "widescreen", DEFAULT_WIDE), d, WIDESCREEN_LABELS.size()))
 				apply_dvd_display()},
 		{"label": "NO SIG", "value": func(): return NO_SIGNAL_LABELS[tv.no_signal],
 			"change": func(d):
@@ -243,12 +249,23 @@ func _tube_is_wide() -> bool:
 	return s.x / s.y > 1.6
 
 
+## The set's zoom for what is on screen: ZOOM crops anamorphic 16:9 DVD
+## video (declared aspect ~1.78) on a 4:3 tube; everything else is shown whole.
+func picture_crop(h: RetroHost) -> float:
+	if _tube_is_wide() or settings.get_value("tv", "widescreen", DEFAULT_WIDE) != Wide.ZOOM:
+		return 1.0
+	if not h.is_running() or h.current.core != "deevee":
+		return 1.0
+	var aspect: float = h.libretro.call("GetDeclaredAspect")
+	return 0.75 if aspect > 1.6 else 1.0
+
+
 ## Tell DeeVee what kind of TV it is connected to: a 16:9 tube takes
 ## anamorphic video as is; a 4:3 one gets letterbox or pan & scan.
 func apply_dvd_display() -> void:
 	if host == null:
 		return
-	var v: String = "16:9" if _tube_is_wide() else WIDESCREEN_OPTION[settings.get_value("tv", "widescreen", 0)]
+	var v: String = "16:9" if _tube_is_wide() else WIDESCREEN_OPTION[settings.get_value("tv", "widescreen", DEFAULT_WIDE)]
 	host.set_core_option("deevee", "deevee_tv_display", v)
 
 
