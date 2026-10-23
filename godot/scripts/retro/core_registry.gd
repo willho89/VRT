@@ -49,6 +49,18 @@ const CORES := {
 		"exts": ["iso", "ifo", "img", "chd"],
 		"folders": ["video", "dvd", "movies"],
 	},
+	# Live TV: network streams and HDHomeRun tuners (X-Streemly, our own core).
+	# With no content it builds its own lineup (a tuner on the LAN, else
+	# iptv-org), so the TV channel always has a "no_content" entry; channel
+	# lists (.m3u) and single streams (.strm) are content too. .m3u is shared
+	# with pcsx_rearmed, so those go in a "tv" folder.
+	"xstreemly": {
+		"bundled": true,
+		"system": "TV",
+		"exts": ["m3u", "m3u8", "strm"],
+		"folders": ["tv", "iptv", "live tv"],
+		"no_content": "LIVE TV",
+	},
 }
 
 

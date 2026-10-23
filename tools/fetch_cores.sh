@@ -16,7 +16,8 @@ fetch() { # platform url-dir suffix
   for c in "${CORES[@]}"; do
     local f=${c}${3}
     if [ ! -f "$dest/$f" ]; then
-      curl -sSfL -o "$tmp/$f.zip" "$BUILDBOT/$2/$f.zip"
+      # Not every core is built for every platform (no Linux ffmpeg core).
+      curl -sSfL -o "$tmp/$f.zip" "$BUILDBOT/$2/$f.zip" || { echo "warning: no $1/$f on the buildbot"; continue; }
       unzip -oq "$tmp/$f.zip" -d "$dest"
       echo "fetched $1/$f"
     fi
@@ -30,13 +31,26 @@ cp -u "$DEEVEE/build/android-arm64/deevee_libretro_android.so" "$ROOT/cores/andr
   || echo "warning: no DeeVee android-arm64 build in $DEEVEE"
 cp -u "$DEEVEE/deevee_libretro.so" "$ROOT/cores/linux-x86_64/" 2>/dev/null \
   || echo "warning: no DeeVee linux build in $DEEVEE"
+# X-Streemly (live TV) is our own core too, from a local checkout's build,
+# stripped of its debug info (24 MB -> 6 MB on Android).
+XSTREEMLY=${XSTREEMLY_DIR:-$HOME/.claude/projects/X-Streemly}
+LLVM_STRIP=$(ls "${ANDROID_NDK:-$HOME/android-ndk}"/*/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip 2>/dev/null | tail -1)
+strip_into() { # src dest-dir
+  [ -f "$1" ] || { echo "warning: no X-Streemly build at $1"; return; }
+  local out=$2/$(basename "$1")
+  [ "$out" -nt "$1" ] && return
+  ${LLVM_STRIP:-strip} --strip-debug -o "$out" "$1" && echo "installed $out"
+}
+strip_into "$XSTREEMLY/build/android-arm64/xstreemly_libretro_android.so" "$ROOT/cores/android-arm64"
+strip_into "$XSTREEMLY/xstreemly_libretro.so" "$ROOT/cores/linux-x86_64"
 
-# Only DeeVee ships inside the APK; VRT downloads every other core from the
-# libretro buildbot on first need (CoreDownloader), so the release carries no
-# third-party cores (Snes9x and Genesis Plus GX are non-commercial licences).
+# Only our own cores (DeeVee, X-Streemly) ship inside the APK; VRT downloads
+# every other core from the libretro buildbot on first need (CoreDownloader),
+# so the release carries no third-party cores (Snes9x and Genesis Plus GX are non-commercial licences).
 # The DeeVee build must be DEEVEE_CSS=dlopen (no CSS code; libdvdcss is
 # user-supplied in its system folder).
 mkdir -p "$ROOT/godot/cores_bundle"
 rm -f "$ROOT"/godot/cores_bundle/*.so
 cp "$ROOT/cores/android-arm64/deevee_libretro_android.so" "$ROOT/godot/cores_bundle/"
+cp "$ROOT/cores/android-arm64/xstreemly_libretro_android.so" "$ROOT/godot/cores_bundle/"
 ls -la "$ROOT/cores/"*

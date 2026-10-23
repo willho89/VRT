@@ -19,6 +19,15 @@ class Entry:
 		system = CoreRegistry.CORES[c].system
 		title = p.get_file().get_basename()
 
+	## A core started without content ("live:<core>", see scan).
+	func is_no_content() -> bool:
+		return path.begins_with(NO_CONTENT_PREFIX)
+
+
+## Path of a core's no-content entry: stable, so recents and favourites can
+## hold it like any file.
+const NO_CONTENT_PREFIX := "live:"
+
 
 var entries: Array[Entry] = []
 
@@ -42,6 +51,13 @@ func scan(roots: Array) -> void:
 			var core := CoreRegistry.core_for_folder(sub)
 			if core != "":
 				_scan_files(root.path_join(sub), core)
+	# Cores that play without content (X-Streemly's lineup) are always listed.
+	for core in CoreRegistry.CORES:
+		var label: String = CoreRegistry.CORES[core].get("no_content", "")
+		if label != "":
+			var e := Entry.new(NO_CONTENT_PREFIX + core, core)
+			e.title = label
+			entries.append(e)
 	entries.sort_custom(func(a: Entry, b: Entry): return a.title.naturalnocasecmp_to(b.title) < 0)
 
 
@@ -72,6 +88,8 @@ func by_system(system: String) -> Array[Entry]:
 ## Path to hand the core: the file itself, or for a zip the first member the
 ## core accepts, extracted into temp_dir. Returns "" if nothing usable.
 static func resolve_launch_path(entry: Entry, temp_dir: String) -> String:
+	if entry.is_no_content():
+		return ""
 	if entry.path.get_extension().to_lower() != "zip":
 		return entry.path
 	var zip := ZIPReader.new()

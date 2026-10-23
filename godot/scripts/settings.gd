@@ -32,6 +32,7 @@ func content_roots() -> Array:
 			{"path": app.path_join("roms")},
 			{"path": app.path_join("video"), "core": "deevee"},
 			{"path": app.path_join("vhs"), "core": "ffmpeg"},
+			{"path": "/sdcard/VRT/tv", "core": "xstreemly"},
 		]
 	var home := OS.get_environment("HOME")
 	return [
@@ -39,6 +40,7 @@ func content_roots() -> Array:
 		{"path": home.path_join("ROMS")},
 		{"path": home.path_join("Videos/DVD"), "core": "deevee"},
 		{"path": home.path_join("Videos/VHS"), "core": "ffmpeg"},
+		{"path": home.path_join("Videos/TV"), "core": "xstreemly"},
 		{"path": home.path_join(".claude/projects/DeeVee/TestISOs"), "core": "deevee"},
 	]
 

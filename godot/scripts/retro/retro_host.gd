@@ -107,7 +107,7 @@ func start(entry: ContentLibrary.Entry) -> void:
 		return
 	stop()
 	var path := ContentLibrary.resolve_launch_path(entry, root.path_join("temp/content"))
-	if path == "":
+	if path == "" and not entry.is_no_content():
 		content_failed.emit("Nothing playable in %s" % entry.path.get_file())
 		return
 	var save_dir := root.path_join("save").path_join(entry.core)
@@ -128,6 +128,9 @@ func start(entry: ContentLibrary.Entry) -> void:
 const MANAGED_OPTIONS := {
 	# VRT draws interlace on the tube itself; never deinterlace in the core.
 	"deevee": {"deevee_deinterlace": "crt"},
+	# A TV picture is standard definition: X-Streemly picks the HLS variant
+	# and scales to 480 lines (decode and upload cost far less than 1080p).
+	"xstreemly": {"xstreemly_max_resolution": "480"},
 }
 
 
