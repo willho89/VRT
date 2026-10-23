@@ -38,6 +38,9 @@ VRT ships with no games or videos. Use your own:
 - `/sdcard/VRT/roms/<System>/...`, e.g. `roms/NES/`, `roms/SNES/`, `roms/Genesis/`, `roms/Master System/`,
   `roms/PC Engine/`, `roms/PlayStation/` (zipped ROMs work; PS1 discs as .chd/.cue/.pbp)
 - `/sdcard/VRT/vhs/` for ordinary video files (mp4, mkv, avi…), played on the **VHS** channel
+- **Live TV** needs nothing: the **TV** channel's LIVE TV finds an HDHomeRun tuner on your network, else
+  plays [iptv-org](https://github.com/iptv-org/iptv)'s free channels. Your own channel lists (`.m3u`) or single
+  stream URLs (`.strm` files) go in `/sdcard/VRT/tv/`
 - `/sdcard/VRT/video/` for DVD images (`.iso`, `.chd`) or `VIDEO_TS` folders
 - `/sdcard/VRT/system/<core>/` for files a core asks for (BIOS images). Optional: DeeVee plays
   CSS-encrypted DVD images only if you put `libdvdcss.so.2` in `/sdcard/VRT/system/deevee/`.
@@ -59,7 +62,8 @@ VRT ships with no games or videos. Use your own:
 - Bluetooth gamepads and the Touch controllers both play.
 
 ## Cores
-VRT bundles only [DeeVee](https://github.com/willho89/DeeVee) (DVD-Video, GPL-2.0+, built without
+VRT bundles only its own cores: [X-Streemly](https://github.com/willho89/X-Streemly) (live TV, GPL-2.0+)
+and [DeeVee](https://github.com/willho89/DeeVee) (DVD-Video, GPL-2.0+, built without
 CSS decryption). FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Sega 8/16-bit), Mednafen PCE Fast
 (PC Engine), PCSX ReARMed (PlayStation) and FFmpeg (video files) are downloaded on first use from the
 libretro buildbot. Each keeps its own license, and
@@ -73,7 +77,7 @@ and the Android SDK/NDK (see `docs/m0-results.md` for the exact versions). C++ i
 git clone --recursive https://github.com/willho89/VRT.git
 cd VRT
 tools/fetch_deps.sh        # Meta OpenXR vendors plugin
-tools/fetch_cores.sh       # libretro cores (DeeVee from a local checkout)
+tools/fetch_cores.sh       # libretro cores (DeeVee, X-Streemly from local checkouts)
 tools/build_extension.sh   # libretro host GDExtension, Linux + Android
 tools/deploy.sh            # export the APK, install on the headset, launch, log
 ```
